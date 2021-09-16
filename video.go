@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func distortVideo(filename, output string, progressChan chan string) {
@@ -28,9 +29,14 @@ func distortVideo(filename, output string, progressChan chan string) {
 	doneChan := make(chan int, 8)
 	go poolDistortImages(numberedFileName, totalFrames, doneChan)
 
+	lastUpdate := time.Now()
 	for distortedFrames != totalFrames {
 		distortedFrames += <-doneChan
-		progressChan <- generateProgressMessage(distortedFrames, totalFrames)
+		now := time.Now()
+		if now.Sub(lastUpdate).Seconds() > 1 {
+			lastUpdate = now
+			progressChan <- generateProgressMessage(distortedFrames, totalFrames)
+		}
 	}
 	progressChan <- "Collecting frames..."
 	collectFramesToVideo(numberedFileName, frameRateFraction, output)
@@ -78,6 +84,7 @@ func collectFramesToVideo(numberedFileName, frameRateFraction, filename string) 
 		"-r", frameRateFraction,
 		"-f", "mp4",
 		"-c:v", "libx264",
+		"-an",
 		filename).Run()
 	if err != nil {
 		log.Println(err)

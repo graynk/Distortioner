@@ -42,6 +42,9 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
+	if m.Animation.Duration > 30 {
+		b.Send(m.Sender, "Senpai, it's too long..")
+	}
 	filename := uniqueFileName(m.Animation.FileID, m.Unixtime)
 	progressMessage, err := b.Send(m.Sender, "Downloading...")
 	if err != nil {
