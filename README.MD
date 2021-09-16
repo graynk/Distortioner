@@ -23,3 +23,10 @@ cd ~/.config/systemd/user/
 podman generate systemd --new --files --name distortioner
 systemctl enable --user container-distortioner.service
 ```
+
+## TODO
+* Distort video notes (with sound)
+* Distort text (why not)
+* Distort voice messages (since I will have to do that anyway for video notes)
+* Make distortion increase throught the video
+* Distort media on mentions in group chats
