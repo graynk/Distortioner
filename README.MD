@@ -6,8 +6,8 @@ Currently resides here: [@distortionerbot](https://t.me/distortionerbot)
 ## Docker support
 Fill out your bot token in distortioner.env, then launch as usual:
 ```Bash
-docker run -d --restart unless-stopped \
-   --name distortioner \ 
+sudo docker run -d --restart unless-stopped \
+   --name distortioner \
    --env-file distortioner.env \
    ghcr.io/graynk/distortioner:latest
 ```
