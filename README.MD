@@ -29,4 +29,3 @@ systemctl enable --user container-distortioner.service
 * Distort text (why not)
 * Distort voice messages (since I will have to do that anyway for video notes)
 * Make distortion increase throughout the video
-* Distort media on mentions in group chats

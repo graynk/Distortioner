@@ -1,4 +1,6 @@
 .idea/
 distortioner
+distortioner.env
+distortioner.dev.env
 README.MD
 .gitignore

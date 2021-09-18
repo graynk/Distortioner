@@ -19,7 +19,7 @@ func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
 	distortImage(filename)
 	// sure would be nice to have generics here
 	distorted := &tb.Photo{File: tb.FromDisk(filename)}
-	_, err = b.Send(m.Sender, distorted)
+	_, err = b.Send(m.Chat, distorted)
 	if err != nil {
 		log.Println(err)
 	}
@@ -35,7 +35,7 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(filename)
 	distortImage(filename)
 	distorted := &tb.Sticker{File: tb.FromDisk(filename)}
-	_, err = b.Send(m.Sender, distorted)
+	_, err = b.Send(m.Chat, distorted)
 	if err != nil {
 		log.Println(err)
 	}
@@ -43,10 +43,10 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 
 func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
 	if m.Animation.Duration > 30 {
-		b.Send(m.Sender, "Senpai, it's too long..")
+		b.Send(m.Chat, "Senpai, it's too long..")
 	}
 	filename := uniqueFileName(m.Animation.FileID, m.Unixtime)
-	progressMessage, err := b.Send(m.Sender, "Downloading...")
+	progressMessage, err := b.Send(m.Chat, "Downloading...")
 	if err != nil {
 		log.Println(err)
 		return
@@ -68,9 +68,24 @@ func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(output)
 
 	distorted := &tb.Animation{File: tb.FromDisk(output)}
-	_, err = b.Send(m.Sender, distorted)
+	_, err = b.Send(m.Chat, distorted)
 	if err != nil {
 		log.Println(err)
+	}
+}
+
+func handleReplyDistortion(b *tb.Bot, m *tb.Message) {
+	if m.ReplyTo == nil {
+		b.Send(m.Chat, "You need to reply with this command to the media you want distorted")
+		return
+	}
+	original := m.ReplyTo
+	if original.Animation != nil {
+		handleAnimationDistortion(b, original)
+	} else if original.Sticker != nil {
+		handleStickerDistortion(b, original)
+	} else if original.Photo != nil {
+		handlePhotoDistortion(b, original)
 	}
 }
 
@@ -86,7 +101,7 @@ func main() {
 	}
 
 	b.Handle("/start", func(m *tb.Message) {
-		b.Send(m.Sender, "Send me a picture, a sticker or a GIF and I'll distort it")
+		b.Send(m.Chat, "Send me a picture, a sticker or a GIF and I'll distort it")
 	})
 
 	b.Handle(tb.OnAnimation, func(m *tb.Message) {
@@ -99,6 +114,10 @@ func main() {
 
 	b.Handle(tb.OnPhoto, func(m *tb.Message) {
 		handlePhotoDistortion(b, m)
+	})
+
+	b.Handle("/distort", func(m *tb.Message) {
+		handleReplyDistortion(b, m)
 	})
 
 	b.Start()
