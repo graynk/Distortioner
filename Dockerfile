@@ -3,7 +3,7 @@ WORKDIR /go/src/distortioner
 COPY . .
 RUN go build
 
-FROM ghcr.io/graynk/ffmpegim as release
+FROM ghcr.io/graynk/imffmpeg as release
 
 RUN mkdir app
 WORKDIR app
