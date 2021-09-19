@@ -29,3 +29,4 @@ systemctl enable --user container-distortioner.service
 * Distort text (why not)
 * Distort voice messages (since I will have to do that anyway for video notes)
 * Make distortion increase throughout the video
+* For stickers create and maintain a separate sticker pack for ease of use
