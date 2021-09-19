@@ -8,7 +8,7 @@ import (
 func distortImage(path string) {
 	err := exec.Command(
 		"mogrify",
-		"-scale", "300x300>",
+		"-scale", "512x512>", // A reasonable cutoff, I hope
 		"-liquid-rescale", "50%",
 		"-scale", "200%",
 		path).Run()
