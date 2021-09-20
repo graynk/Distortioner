@@ -108,6 +108,8 @@ func handleReplyDistortion(b *tb.Bot, m *tb.Message) {
 		handleStickerDistortion(b, original)
 	} else if original.Photo != nil {
 		handlePhotoDistortion(b, original)
+	} else if original.Voice != nil {
+		handleVoiceDistortion(b, original)
 	}
 }
 
