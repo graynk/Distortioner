@@ -13,6 +13,7 @@ func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
 	err := b.Download(m.Photo.MediaFile(), filename)
 	if err != nil {
 		log.Println(err)
+		b.Send(m.Chat, "Failed to download photo")
 		return
 	}
 	defer os.Remove(filename)
@@ -30,6 +31,7 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 	err := b.Download(&m.Sticker.File, filename)
 	if err != nil {
 		log.Println(err)
+		b.Send(m.Chat, "Failed to download sticker")
 		return
 	}
 	defer os.Remove(filename)
@@ -53,7 +55,7 @@ func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
 	}
 	err = b.Download(m.Animation.MediaFile(), filename)
 	if err != nil {
-		b.Edit(progressMessage, "Couldn't download animation")
+		b.Edit(progressMessage, "Failed to download animation")
 		log.Println(err)
 		return
 	}
@@ -68,6 +70,26 @@ func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(output)
 
 	distorted := &tb.Animation{File: tb.FromDisk(output)}
+	_, err = b.Send(m.Chat, distorted)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
+	filename := uniqueFileName(m.Voice.FileID, m.Unixtime)
+	err := b.Download(&m.Voice.File, filename)
+	if err != nil {
+		log.Println(err)
+		b.Send(m.Chat, "Failed to download voice message")
+		return
+	}
+	defer os.Remove(filename)
+	output := filename + ".ogg"
+	distortSound(filename, output)
+	defer os.Remove(output)
+
+	distorted := &tb.Voice{File: tb.FromDisk(output)}
 	_, err = b.Send(m.Chat, distorted)
 	if err != nil {
 		log.Println(err)
@@ -101,7 +123,7 @@ func main() {
 	}
 
 	b.Handle("/start", func(m *tb.Message) {
-		b.Send(m.Chat, "Send me a picture, a sticker or a GIF and I'll distort it")
+		b.Send(m.Chat, "Send me a picture, a sticker, a voice message or a GIF and I'll distort it")
 	})
 
 	b.Handle(tb.OnAnimation, func(m *tb.Message) {
@@ -109,11 +131,19 @@ func main() {
 	})
 
 	b.Handle(tb.OnSticker, func(m *tb.Message) {
+		if m.Sticker.Animated {
+			// TODO: there might be a nice way to distort them too, just parse the data and move around stuff, I guess
+			return
+		}
 		handleStickerDistortion(b, m)
 	})
 
 	b.Handle(tb.OnPhoto, func(m *tb.Message) {
 		handlePhotoDistortion(b, m)
+	})
+
+	b.Handle(tb.OnVoice, func(m *tb.Message) {
+		handleVoiceDistortion(b, m)
 	})
 
 	b.Handle("/distort", func(m *tb.Message) {
