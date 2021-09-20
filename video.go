@@ -6,8 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -21,13 +19,15 @@ func distortVideo(filename, output string, progressChan chan string) {
 		return
 	}
 	defer os.RemoveAll(framesFir)
-	frameRateFraction, totalFrames := getFrameRateFractionAndFrameCount(filename)
+	frameRateFraction := getFrameRateFraction(filename)
 	numberedFileName := fmt.Sprintf("%s/%s%%03d.png", framesFir, filename)
 	extractFramesFromVideo(frameRateFraction, filename, numberedFileName)
 
+	files, err := os.ReadDir(framesFir)
 	distortedFrames := 0
+	totalFrames := len(files)
 	doneChan := make(chan int, 8)
-	go poolDistortImages(numberedFileName, totalFrames, doneChan)
+	go poolDistortImages(framesFir, files, doneChan)
 
 	lastUpdate := time.Now()
 	for distortedFrames != totalFrames {
@@ -44,26 +44,19 @@ func distortVideo(filename, output string, progressChan chan string) {
 	close(progressChan)
 }
 
-func getFrameRateFractionAndFrameCount(filename string) (string, int) {
+func getFrameRateFraction(filename string) string {
 	output, err := exec.Command(
 		"ffprobe",
 		"-v", "error",
 		"-select_streams", "v",
 		"-of", "default=noprint_wrappers=1:nokey=1",
-		"-count_packets",
-		"-show_entries", "stream=nb_read_packets,r_frame_rate",
+		"-show_entries", "stream=r_frame_rate",
 		filename).Output()
 	if err != nil {
 		log.Println(err)
 		panic(err)
 	}
-	split := strings.Split(string(output), "\n")
-	frameCount, err := strconv.Atoi(split[1])
-	if err != nil {
-		log.Println(err)
-		panic(err)
-	}
-	return split[0], frameCount
+	return string(output)
 }
 
 func extractFramesFromVideo(frameRateFraction, filename, numberedFileName string) {
@@ -92,17 +85,17 @@ func collectFramesToVideo(numberedFileName, frameRateFraction, filename string) 
 	}
 }
 
-func poolDistortImages(numberedFileName string, frameCount int, doneChan chan int) {
+func poolDistortImages(framesDir string, files []os.DirEntry, doneChan chan int) {
 	cpuCount := runtime.NumCPU()
 	sem := make(chan bool, cpuCount)
-	for frame := 1; frame <= frameCount; frame++ {
+	for _, frame := range files {
 		sem <- true
-		go func(frame int) {
+		go func(frame os.DirEntry) {
 			defer func() {
 				<-sem
 				doneChan <- 1
 			}()
-			distortImage(fmt.Sprintf(numberedFileName, frame))
+			distortImage(fmt.Sprintf("%s/%s", framesDir, frame.Name()))
 		}(frame)
 	}
 }
