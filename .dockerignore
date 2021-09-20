@@ -1,6 +1,9 @@
 .idea/
+.github/
 distortioner
 distortioner.env
 distortioner.dev.env
 README.MD
+LICENSE
 .gitignore
+avatar.jpg

@@ -1,4 +1,5 @@
 # Distortioner
+![Distorted cat](avatar.jpg)
 
 Telegram bot for distorting pictures, stickers and GIFs using Content Aware Scale.
 Currently resides here: [@distortionerbot](https://t.me/distortionerbot)
