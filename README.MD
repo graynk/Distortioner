@@ -1,7 +1,7 @@
 # Distortioner
 ![Distorted cat](avatar.jpg)
 
-Telegram bot for distorting pictures, stickers and GIFs using Content Aware Scale.
+Telegram bot for distorting pictures, stickers, voice messages and GIFs using Content Aware Scale.
 Currently resides here: [@distortionerbot](https://t.me/distortionerbot)
 
 ## Usage
@@ -33,6 +33,5 @@ systemctl enable --user container-distortioner.service
 ## TODO
 * Distort video notes (with sound)
 * Distort text (why not)
-* Distort voice messages (since I will have to do that anyway for video notes)
 * Make distortion increase throughout the video
 * For stickers create and maintain a separate sticker pack for ease of use
