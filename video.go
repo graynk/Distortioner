@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,15 +21,13 @@ func distortVideo(filename, output string, progressChan chan string) {
 		return
 	}
 	defer os.RemoveAll(framesFir)
-	frameRateFraction := getFrameRateFraction(filename)
-	numberedFileName := fmt.Sprintf("%s/%s%%03d.png", framesFir, filename)
+	frameRateFraction, totalFrames := getFrameRateFractionAndFrameCount(filename)
+	numberedFileName := fmt.Sprintf("%s/%s%%04d.png", framesFir, filename)
 	extractFramesFromVideo(frameRateFraction, filename, numberedFileName)
 
-	files, err := os.ReadDir(framesFir)
 	distortedFrames := 0
-	totalFrames := len(files)
 	doneChan := make(chan int, 8)
-	go poolDistortImages(framesFir, files, doneChan)
+	go poolDistortImages(numberedFileName, totalFrames, doneChan)
 
 	lastUpdate := time.Now()
 	for distortedFrames != totalFrames {
@@ -44,19 +44,26 @@ func distortVideo(filename, output string, progressChan chan string) {
 	close(progressChan)
 }
 
-func getFrameRateFraction(filename string) string {
+func getFrameRateFractionAndFrameCount(filename string) (string, int) {
 	output, err := exec.Command(
 		"ffprobe",
 		"-v", "error",
 		"-select_streams", "v",
 		"-of", "default=noprint_wrappers=1:nokey=1",
-		"-show_entries", "stream=r_frame_rate",
+		"-count_frames",
+		"-show_entries", "stream=nb_read_frames,avg_frame_rate",
 		filename).Output()
 	if err != nil {
 		log.Println(err)
 		panic(err)
 	}
-	return string(output)
+	split := strings.Split(string(output), "\n")
+	frameCount, err := strconv.Atoi(split[1])
+	if err != nil {
+		log.Println(err)
+		panic(err)
+	}
+	return split[0], frameCount
 }
 
 func extractFramesFromVideo(frameRateFraction, filename, numberedFileName string) {
@@ -73,8 +80,8 @@ func extractFramesFromVideo(frameRateFraction, filename, numberedFileName string
 
 func collectFramesToVideo(numberedFileName, frameRateFraction, filename string) {
 	err := exec.Command("ffmpeg",
-		"-i", numberedFileName,
 		"-r", frameRateFraction,
+		"-i", numberedFileName,
 		"-f", "mp4",
 		"-c:v", "libx264",
 		"-an",
@@ -85,17 +92,17 @@ func collectFramesToVideo(numberedFileName, frameRateFraction, filename string) 
 	}
 }
 
-func poolDistortImages(framesDir string, files []os.DirEntry, doneChan chan int) {
+func poolDistortImages(numberedFileName string, frameCount int, doneChan chan int) {
 	cpuCount := runtime.NumCPU()
 	sem := make(chan bool, cpuCount)
-	for _, frame := range files {
+	for frame := 1; frame <= frameCount; frame++ {
 		sem <- true
-		go func(frame os.DirEntry) {
+		go func(frame int) {
 			defer func() {
 				<-sem
 				doneChan <- 1
 			}()
-			distortImage(fmt.Sprintf("%s/%s", framesDir, frame.Name()))
+			distortImage(fmt.Sprintf(numberedFileName, frame))
 		}(frame)
 	}
 }
