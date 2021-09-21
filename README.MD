@@ -31,7 +31,6 @@ systemctl enable --user container-distortioner.service
 ```
 
 ## TODO
-* Distort video notes (with sound)
-* Distort text (why not)
+* Distort animated stickers
 * Make distortion increase throughout the video
 * For stickers create and maintain a separate sticker pack for ease of use

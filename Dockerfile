@@ -5,7 +5,6 @@ RUN go build
 
 FROM ghcr.io/graynk/imffmpeg as release
 
-RUN mkdir app
 WORKDIR app
 COPY --from=build /go/src/distortioner/distortioner distortioner
 
