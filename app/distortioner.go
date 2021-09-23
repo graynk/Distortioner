@@ -209,6 +209,9 @@ func main() {
 	})
 
 	b.Handle(tb.OnText, func(m *tb.Message) {
+		if m.FromGroup() {
+			return
+		}
 		handleTextDistortion(b, m)
 	})
 
