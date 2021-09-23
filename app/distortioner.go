@@ -49,6 +49,7 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
 	if m.Animation.Duration > 30 {
 		b.Send(m.Chat, "Senpai, it's too long..")
+		return
 	}
 	filename := uniqueFileName(m.Animation.FileID, m.Unixtime)
 	progressMessage, err := b.Send(m.Chat, "Downloading...")
@@ -96,6 +97,47 @@ func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(output)
 
 	distorted := &tb.Voice{File: tb.FromDisk(output)}
+	_, err = b.Send(m.Chat, distorted)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
+	if m.Video.Duration > 30 {
+		b.Send(m.Chat, "Senpai, it's too long..")
+		return
+	}
+	filename := uniqueFileName(m.Video.FileID, m.Unixtime)
+	progressMessage, err := b.Send(m.Chat, "Downloading...")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	err = b.Download(&m.Video.File, filename)
+	if err != nil {
+		log.Println(err)
+		b.Send(m.Chat, "Failed to download video")
+		return
+	}
+	defer os.Remove(filename)
+	animationOutput := filename + ".mp4"
+	soundOutput := filename + ".ogg"
+	output := filename + "Final.mp4"
+	progressChan := make(chan string, 3)
+	go distortSound(filename, soundOutput) // no need to pass channel, it's always faster
+	go distortVideo(filename, animationOutput, progressChan, false)
+	for report := range progressChan {
+		b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
+	}
+	defer os.Remove(animationOutput)
+	defer os.Remove(soundOutput)
+	b.Edit(progressMessage, "Muxing frames with sound back together...")
+	collectAnimationAndSound(animationOutput, soundOutput, output)
+	defer os.Remove(output)
+	b.Edit(progressMessage, "Done!")
+
+	distorted := &tb.Video{File: tb.FromDisk(output)}
 	_, err = b.Send(m.Chat, distorted)
 	if err != nil {
 		log.Println(err)
@@ -202,6 +244,10 @@ func main() {
 
 	b.Handle(tb.OnVoice, func(m *tb.Message) {
 		handleVoiceDistortion(b, m)
+	})
+
+	b.Handle(tb.OnVideo, func(m *tb.Message) {
+		handleVideoDistortion(b, m)
 	})
 
 	b.Handle(tb.OnVideoNote, func(m *tb.Message) {

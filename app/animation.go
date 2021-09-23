@@ -87,6 +87,7 @@ func collectFramesToVideo(numberedFileName, frameRateFraction, filename string) 
 		"-f", "mp4",
 		"-c:v", "libx264",
 		"-an",
+		"-pix_fmt", "yuv420p",
 		filename).Run()
 	if err != nil {
 		log.Println(err)
