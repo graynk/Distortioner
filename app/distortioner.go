@@ -199,6 +199,8 @@ func handleReplyDistortion(b *tb.Bot, m *tb.Message) {
 		handlePhotoDistortion(b, original)
 	} else if original.Voice != nil {
 		handleVoiceDistortion(b, original)
+	} else if original.Video != nil {
+		handleVideoDistortion(b, original)
 	} else if original.VideoNote != nil {
 		handleVideoNoteDistortion(b, original)
 	} else if original.Text != "" {
