@@ -8,12 +8,32 @@ import (
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
-func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
-	filename := uniqueFileName(m.Photo.FileID, m.Unixtime)
-	err := b.Download(m.Photo.MediaFile(), filename)
+func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
+	if m.Animation.Duration > 30 {
+		b.Send(m.Chat, "Senpai, it's too long..")
+		return
+	}
+
+	_, filename, output, err := handleAnimationCommon(b, m)
+	if err != nil {
+		return
+	}
+	defer os.Remove(filename)
+	defer os.Remove(output)
+
+	distorted := &tb.Animation{File: tb.FromDisk(output)}
+	if m.Caption != "" {
+		distorted.Caption = distortText(m.Caption)
+	}
+	_, err = b.Send(m.Chat, distorted)
 	if err != nil {
 		log.Println(err)
-		b.Send(m.Chat, "Failed to download photo")
+	}
+}
+
+func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
+	filename, err := justGetTheFile(b, m)
+	if err != nil {
 		return
 	}
 	defer os.Remove(filename)
@@ -30,11 +50,8 @@ func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
-	filename := uniqueFileName(m.Sticker.FileID, m.Unixtime)
-	err := b.Download(&m.Sticker.File, filename)
+	filename, err := justGetTheFile(b, m)
 	if err != nil {
-		log.Println(err)
-		b.Send(m.Chat, "Failed to download sticker")
 		return
 	}
 	defer os.Remove(filename)
@@ -46,37 +63,35 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 	}
 }
 
-func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
-	if m.Animation.Duration > 30 {
+func handleTextDistortion(b *tb.Bot, m *tb.Message) {
+	b.Send(m.Chat, distortText(m.Text))
+}
+
+func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
+	if m.Video.Duration > 30 {
 		b.Send(m.Chat, "Senpai, it's too long..")
 		return
 	}
-	filename := uniqueFileName(m.Animation.FileID, m.Unixtime)
-	progressMessage, err := b.Send(m.Chat, "Downloading...")
+	output, err := handleVideoCommon(b, m)
 	if err != nil {
-		log.Println(err)
 		return
-	}
-	err = b.Download(m.Animation.MediaFile(), filename)
-	if err != nil {
-		b.Edit(progressMessage, "Failed to download animation")
-		log.Println(err)
-		return
-	}
-	defer os.Remove(filename)
-
-	output := filename + ".mp4"
-	progressChan := make(chan string, 3)
-	go distortVideo(filename, output, progressChan, true)
-	for report := range progressChan {
-		b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
 	}
 	defer os.Remove(output)
 
-	distorted := &tb.Animation{File: tb.FromDisk(output)}
-	if m.Caption != "" {
-		distorted.Caption = distortText(m.Caption)
+	distorted := &tb.Video{File: tb.FromDisk(output)}
+	_, err = b.Send(m.Chat, distorted)
+	if err != nil {
+		log.Println(err)
 	}
+}
+
+func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message) {
+	output, err := handleVideoCommon(b, m)
+	if err != nil {
+		return
+	}
+	defer os.Remove(output)
+	distorted := &tb.VideoNote{File: tb.FromDisk(output)}
 	_, err = b.Send(m.Chat, distorted)
 	if err != nil {
 		log.Println(err)
@@ -103,88 +118,6 @@ func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 	}
 }
 
-func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
-	if m.Video.Duration > 30 {
-		b.Send(m.Chat, "Senpai, it's too long..")
-		return
-	}
-	filename := uniqueFileName(m.Video.FileID, m.Unixtime)
-	progressMessage, err := b.Send(m.Chat, "Downloading...")
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	err = b.Download(&m.Video.File, filename)
-	if err != nil {
-		log.Println(err)
-		b.Send(m.Chat, "Failed to download video")
-		return
-	}
-	defer os.Remove(filename)
-	animationOutput := filename + ".mp4"
-	soundOutput := filename + ".ogg"
-	output := filename + "Final.mp4"
-	progressChan := make(chan string, 3)
-	go distortSound(filename, soundOutput) // no need to pass channel, it's always faster
-	go distortVideo(filename, animationOutput, progressChan, false)
-	for report := range progressChan {
-		b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
-	}
-	defer os.Remove(animationOutput)
-	defer os.Remove(soundOutput)
-	b.Edit(progressMessage, "Muxing frames with sound back together...")
-	collectAnimationAndSound(animationOutput, soundOutput, output)
-	defer os.Remove(output)
-	b.Edit(progressMessage, "Done!")
-
-	distorted := &tb.Video{File: tb.FromDisk(output)}
-	_, err = b.Send(m.Chat, distorted)
-	if err != nil {
-		log.Println(err)
-	}
-}
-
-func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message) {
-	filename := uniqueFileName(m.VideoNote.FileID, m.Unixtime)
-	progressMessage, err := b.Send(m.Chat, "Downloading...")
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	err = b.Download(&m.VideoNote.File, filename)
-	if err != nil {
-		log.Println(err)
-		b.Send(m.Chat, "Failed to download video note")
-		return
-	}
-	defer os.Remove(filename)
-	animationOutput := filename + ".mp4"
-	soundOutput := filename + ".ogg"
-	output := filename + "Final.mp4"
-	progressChan := make(chan string, 3)
-	go distortSound(filename, soundOutput) // no need to pass channel, it's always faster
-	go distortVideo(filename, animationOutput, progressChan, false)
-	for report := range progressChan {
-		b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
-	}
-	defer os.Remove(animationOutput)
-	defer os.Remove(soundOutput)
-	b.Edit(progressMessage, "Muxing frames with sound back together...")
-	collectAnimationAndSound(animationOutput, soundOutput, output)
-	defer os.Remove(output)
-	b.Edit(progressMessage, "Done!")
-
-	distorted := &tb.VideoNote{File: tb.FromDisk(output)}
-	_, err = b.Send(m.Chat, distorted)
-	if err != nil {
-		log.Println(err)
-	}
-}
-
-func handleTextDistortion(b *tb.Bot, m *tb.Message) {
-	b.Send(m.Chat, distortText(m.Text))
-}
-
 func handleReplyDistortion(b *tb.Bot, m *tb.Message) {
 	if m.ReplyTo == nil {
 		b.Send(m.Chat, "You need to reply with this command to the media you want distorted")
@@ -209,7 +142,6 @@ func handleReplyDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func main() {
-	// TODO: Attach middleware to reduce boilerplate
 	b, err := tb.NewBot(tb.Settings{
 		Token:  os.Getenv("DISTORTIONER_BOT_TOKEN"),
 		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
@@ -221,7 +153,7 @@ func main() {
 	}
 
 	b.Handle("/start", func(m *tb.Message) {
-		b.Send(m.Chat, "Send me a picture, a sticker, a voice message or a GIF and I'll distort it")
+		b.Send(m.Chat, "Send me a picture, a sticker, a voice message, a video[note] or a GIF and I'll distort it")
 	})
 
 	b.Handle("/distort", func(m *tb.Message) {
