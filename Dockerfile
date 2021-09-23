@@ -1,6 +1,6 @@
 FROM golang:1.17-bullseye as build
 WORKDIR /go/src/distortioner
-COPY . .
+COPY app .
 RUN go build
 
 FROM ghcr.io/graynk/imffmpeg as release
