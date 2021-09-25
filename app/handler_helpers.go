@@ -8,7 +8,7 @@ import (
 )
 
 func handleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, string, error) {
-	progressMessage, err := b.Send(m.Chat, "Downloading...")
+	progressMessage, err := sendMessageRepeater(b, m.Chat, "Downloading...")
 	if err != nil {
 		log.Println(err)
 		return nil, "", "", err
@@ -56,17 +56,21 @@ func doneMessageRepeater(b *tb.Bot, m *tb.Message) {
 	}
 }
 
-func sendMessageRepeater(b *tb.Bot, chat *tb.Chat, toSend interface{}) {
-	_, err := b.Send(chat, toSend)
+func sendMessageRepeater(b *tb.Bot, chat *tb.Chat, toSend interface{}) (*tb.Message, error) {
+	m, err := b.Send(chat, toSend)
 	for err != nil {
 		timeout, err := extractPossibleTimeout(err)
 		if err != nil {
-			return
+			log.Println(err)
+			return nil, err
 		}
+		log.Printf("sleeping for %d\n", timeout)
 		time.Sleep(time.Duration(timeout))
-		_, err = b.Send(chat, toSend)
+		m, err = b.Send(chat, toSend)
 		if err != nil {
 			log.Println(err)
 		}
 	}
+
+	return m, nil
 }
