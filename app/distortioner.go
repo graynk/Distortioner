@@ -20,13 +20,13 @@ func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
 	}
 	defer os.Remove(filename)
 	defer os.Remove(output)
-	doneMessageRepeater(b, progressMessage)
+	doneMessageWithRepeater(b, progressMessage)
 
 	distorted := &tb.Animation{File: tb.FromDisk(output)}
 	if m.Caption != "" {
 		distorted.Caption = distortText(m.Caption)
 	}
-	sendMessageRepeater(b, m.Chat, distorted)
+	sendMessageWithRepeater(b, m.Chat, distorted)
 }
 
 func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
@@ -41,7 +41,7 @@ func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
 	if m.Caption != "" {
 		distorted.Caption = distortText(m.Caption)
 	}
-	sendMessageRepeater(b, m.Chat, distorted)
+	sendMessageWithRepeater(b, m.Chat, distorted)
 }
 
 func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
@@ -52,11 +52,11 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(filename)
 	distortImage(filename)
 	distorted := &tb.Sticker{File: tb.FromDisk(filename)}
-	sendMessageRepeater(b, m.Chat, distorted)
+	sendMessageWithRepeater(b, m.Chat, distorted)
 }
 
 func handleTextDistortion(b *tb.Bot, m *tb.Message) {
-	sendMessageRepeater(b, m.Chat, distortText(m.Text))
+	sendMessageWithRepeater(b, m.Chat, distortText(m.Text))
 }
 
 func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
@@ -71,7 +71,7 @@ func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(output)
 
 	distorted := &tb.Video{File: tb.FromDisk(output)}
-	sendMessageRepeater(b, m.Chat, distorted)
+	sendMessageWithRepeater(b, m.Chat, distorted)
 }
 
 func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message) {
@@ -81,7 +81,7 @@ func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message) {
 	}
 	defer os.Remove(output)
 	distorted := &tb.VideoNote{File: tb.FromDisk(output)}
-	sendMessageRepeater(b, m.Chat, distorted)
+	sendMessageWithRepeater(b, m.Chat, distorted)
 }
 
 func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
@@ -98,7 +98,7 @@ func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(output)
 
 	distorted := &tb.Voice{File: tb.FromDisk(output)}
-	sendMessageRepeater(b, m.Chat, distorted)
+	sendMessageWithRepeater(b, m.Chat, distorted)
 }
 
 func handleReplyDistortion(b *tb.Bot, m *tb.Message) {

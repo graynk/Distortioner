@@ -8,7 +8,7 @@ import (
 )
 
 func handleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, string, error) {
-	progressMessage, err := sendMessageRepeater(b, m.Chat, "Downloading...")
+	progressMessage, err := sendMessageWithRepeater(b, m.Chat, "Downloading...")
 	if err != nil {
 		log.Println(err)
 		return nil, "", "", err
@@ -43,11 +43,11 @@ func handleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
 	output := filename + "Final.mp4"
 	b.Edit(progressMessage, "Muxing frames with sound back together...")
 	collectAnimationAndSound(animationOutput, soundOutput, output)
-	doneMessageRepeater(b, progressMessage)
+	doneMessageWithRepeater(b, progressMessage)
 	return output, nil
 }
 
-func doneMessageRepeater(b *tb.Bot, m *tb.Message) {
+func doneMessageWithRepeater(b *tb.Bot, m *tb.Message) {
 	done := "Done!"
 	_, err := b.Edit(m, done)
 	for err != nil {
@@ -60,7 +60,7 @@ func doneMessageRepeater(b *tb.Bot, m *tb.Message) {
 	}
 }
 
-func sendMessageRepeater(b *tb.Bot, chat *tb.Chat, toSend interface{}) (*tb.Message, error) {
+func sendMessageWithRepeater(b *tb.Bot, chat *tb.Chat, toSend interface{}) (*tb.Message, error) {
 	m, err := b.Send(chat, toSend)
 	for err != nil {
 		timeout, err := extractPossibleTimeout(err)
