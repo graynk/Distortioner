@@ -91,7 +91,10 @@ func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 	}
 	defer os.Remove(filename)
 	output := filename + ".ogg"
-	distortSound(filename, output)
+	err = distortSound(filename, output)
+	if err != nil {
+		panic(err)
+	}
 	defer os.Remove(output)
 
 	distorted := &tb.Voice{File: tb.FromDisk(output)}

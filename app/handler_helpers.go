@@ -34,8 +34,12 @@ func handleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
 	defer os.Remove(filename)
 	defer os.Remove(animationOutput)
 	soundOutput := filename + ".ogg"
-	distortSound(filename, soundOutput)
-	defer os.Remove(soundOutput)
+	err = distortSound(filename, soundOutput)
+	if err != nil {
+		soundOutput = ""
+	} else {
+		defer os.Remove(soundOutput)
+	}
 	output := filename + "Final.mp4"
 	b.Edit(progressMessage, "Muxing frames with sound back together...")
 	collectAnimationAndSound(animationOutput, soundOutput, output)

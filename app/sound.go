@@ -6,7 +6,7 @@ import (
 	"os/exec"
 )
 
-func distortSound(filename, output string) {
+func distortSound(filename, output string) error {
 	var outbuf, errbuf bytes.Buffer
 	cmd := exec.Command(
 		"ffmpeg",
@@ -22,6 +22,6 @@ func distortSound(filename, output string) {
 		log.Println(outbuf.String())
 		log.Println(errbuf.String())
 		log.Println(err)
-		panic(err)
 	}
+	return err
 }
