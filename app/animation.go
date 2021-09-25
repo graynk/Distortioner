@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func distortVideo(filename, output string, progressChan chan string, reportAsDone bool) {
+func distortVideo(filename, output string, progressChan chan string) {
 	progressChan <- "Extracting frames..."
 	framesFir := filename + "Frames"
 	err := os.Mkdir(framesFir, 0755)
@@ -40,9 +40,6 @@ func distortVideo(filename, output string, progressChan chan string, reportAsDon
 	}
 	progressChan <- "Collecting frames..."
 	collectFramesToVideo(numberedFileName, frameRateFraction, output)
-	if reportAsDone {
-		progressChan <- "Done!"
-	}
 	close(progressChan)
 }
 

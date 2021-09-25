@@ -4,6 +4,7 @@ import (
 	tb "gopkg.in/tucnak/telebot.v2"
 	"log"
 	"os"
+	"time"
 )
 
 func handleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, string, error) {
@@ -18,7 +19,7 @@ func handleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, strin
 	}
 	animationOutput := filename + ".mp4"
 	progressChan := make(chan string, 3)
-	go distortVideo(filename, animationOutput, progressChan, false)
+	go distortVideo(filename, animationOutput, progressChan)
 	for report := range progressChan {
 		b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
 	}
@@ -38,6 +39,34 @@ func handleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
 	output := filename + "Final.mp4"
 	b.Edit(progressMessage, "Muxing frames with sound back together...")
 	collectAnimationAndSound(animationOutput, soundOutput, output)
-	b.Edit(progressMessage, "Done!")
+	doneMessageRepeater(b, progressMessage)
 	return output, nil
+}
+
+func doneMessageRepeater(b *tb.Bot, m *tb.Message) {
+	done := "Done!"
+	_, err := b.Edit(m, done)
+	for err != nil {
+		timeout, err := extractPossibleTimeout(err)
+		if err != nil {
+			return
+		}
+		time.Sleep(time.Duration(timeout))
+		_, err = b.Edit(m, done)
+	}
+}
+
+func sendMessageRepeater(b *tb.Bot, chat *tb.Chat, toSend interface{}) {
+	_, err := b.Send(chat, toSend)
+	for err != nil {
+		timeout, err := extractPossibleTimeout(err)
+		if err != nil {
+			return
+		}
+		time.Sleep(time.Duration(timeout))
+		_, err = b.Send(chat, toSend)
+		if err != nil {
+			log.Println(err)
+		}
+	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/google/uuid"
 	tb "gopkg.in/tucnak/telebot.v2"
 	"log"
 	"strconv"
@@ -10,10 +11,6 @@ import (
 
 const progress = "Processing frames...\n<code>[----------] %d%%</code>"
 
-func uniqueFileName(fileId string, timestamp int64) string {
-	return fileId + strconv.FormatInt(timestamp, 10)
-}
-
 func generateProgressMessage(done, total int) string {
 	fraction := float64(done) / float64(total)
 	message := fmt.Sprintf(progress, int(fraction*100))
@@ -21,26 +18,20 @@ func generateProgressMessage(done, total int) string {
 }
 
 func justGetTheFile(b *tb.Bot, m *tb.Message) (string, error) {
-	var filename string
 	var file tb.File
+	filename := uuid.New().String()
 	switch {
 	case m.Animation != nil:
-		filename = uniqueFileName(m.Animation.FileID, m.Unixtime)
 		file = m.Animation.File
 	case m.Photo != nil:
-		filename = uniqueFileName(m.Photo.FileID, m.Unixtime)
 		file = m.Photo.File
 	case m.Sticker != nil:
-		filename = uniqueFileName(m.Sticker.FileID, m.Unixtime)
 		file = m.Sticker.File
 	case m.Video != nil:
-		filename = uniqueFileName(m.Video.FileID, m.Unixtime)
 		file = m.Video.File
 	case m.VideoNote != nil:
-		filename = uniqueFileName(m.VideoNote.FileID, m.Unixtime)
 		file = m.VideoNote.File
 	case m.Voice != nil:
-		filename = uniqueFileName(m.Voice.FileID, m.Unixtime)
 		file = m.Voice.File
 	}
 	err := b.Download(&file, filename)
@@ -50,4 +41,19 @@ func justGetTheFile(b *tb.Bot, m *tb.Message) (string, error) {
 	}
 
 	return filename, err
+}
+
+func extractPossibleTimeout(err error) (int, error) {
+	// format: "telegram: retry after x (429)"
+	errorString := err.Error()
+	after := "after "
+	retryAfterStringEnd := strings.LastIndex(errorString, after)
+	if retryAfterStringEnd == -1 {
+		return 0, err
+	}
+	timeoutEnd := strings.LastIndex(errorString, " (")
+	if timeoutEnd == -1 {
+		timeoutEnd = len(errorString)
+	}
+	return strconv.Atoi(errorString[retryAfterStringEnd+len(after) : timeoutEnd])
 }

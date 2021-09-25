@@ -14,21 +14,19 @@ func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
 		return
 	}
 
-	_, filename, output, err := handleAnimationCommon(b, m)
+	progressMessage, filename, output, err := handleAnimationCommon(b, m)
 	if err != nil {
 		return
 	}
 	defer os.Remove(filename)
 	defer os.Remove(output)
+	doneMessageRepeater(b, progressMessage)
 
 	distorted := &tb.Animation{File: tb.FromDisk(output)}
 	if m.Caption != "" {
 		distorted.Caption = distortText(m.Caption)
 	}
-	_, err = b.Send(m.Chat, distorted)
-	if err != nil {
-		log.Println(err)
-	}
+	sendMessageRepeater(b, m.Chat, distorted)
 }
 
 func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
@@ -43,10 +41,7 @@ func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
 	if m.Caption != "" {
 		distorted.Caption = distortText(m.Caption)
 	}
-	_, err = b.Send(m.Chat, distorted)
-	if err != nil {
-		log.Println(err)
-	}
+	sendMessageRepeater(b, m.Chat, distorted)
 }
 
 func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
@@ -57,14 +52,11 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(filename)
 	distortImage(filename)
 	distorted := &tb.Sticker{File: tb.FromDisk(filename)}
-	_, err = b.Send(m.Chat, distorted)
-	if err != nil {
-		log.Println(err)
-	}
+	sendMessageRepeater(b, m.Chat, distorted)
 }
 
 func handleTextDistortion(b *tb.Bot, m *tb.Message) {
-	b.Send(m.Chat, distortText(m.Text))
+	sendMessageRepeater(b, m.Chat, distortText(m.Text))
 }
 
 func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
@@ -79,10 +71,7 @@ func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(output)
 
 	distorted := &tb.Video{File: tb.FromDisk(output)}
-	_, err = b.Send(m.Chat, distorted)
-	if err != nil {
-		log.Println(err)
-	}
+	sendMessageRepeater(b, m.Chat, distorted)
 }
 
 func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message) {
@@ -92,18 +81,12 @@ func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message) {
 	}
 	defer os.Remove(output)
 	distorted := &tb.VideoNote{File: tb.FromDisk(output)}
-	_, err = b.Send(m.Chat, distorted)
-	if err != nil {
-		log.Println(err)
-	}
+	sendMessageRepeater(b, m.Chat, distorted)
 }
 
 func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
-	filename := uniqueFileName(m.Voice.FileID, m.Unixtime)
-	err := b.Download(&m.Voice.File, filename)
+	filename, err := justGetTheFile(b, m)
 	if err != nil {
-		log.Println(err)
-		b.Send(m.Chat, "Failed to download voice message")
 		return
 	}
 	defer os.Remove(filename)
@@ -112,10 +95,7 @@ func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(output)
 
 	distorted := &tb.Voice{File: tb.FromDisk(output)}
-	_, err = b.Send(m.Chat, distorted)
-	if err != nil {
-		log.Println(err)
-	}
+	sendMessageRepeater(b, m.Chat, distorted)
 }
 
 func handleReplyDistortion(b *tb.Bot, m *tb.Message) {
