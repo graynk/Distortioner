@@ -33,4 +33,9 @@ func TestExtractPossibleTimeout(t *testing.T) {
 	if timeout != 0 || err == nil {
 		t.Fatal(err)
 	}
+	err = errors.New("telegram: bot was kicked from the supergroup chat (403)")
+	timeout, err = extractPossibleTimeout(err)
+	if timeout != 0 || err == nil {
+		t.Fatal(err)
+	}
 }
