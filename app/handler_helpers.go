@@ -69,7 +69,7 @@ func sendMessageWithRepeater(b *tb.Bot, chat *tb.Chat, toSend interface{}) (*tb.
 			return nil, err
 		}
 		log.Printf("sleeping for %d\n", timeout)
-		time.Sleep(time.Duration(timeout))
+		time.Sleep(time.Duration(timeout) * time.Second)
 		m, err = b.Send(chat, toSend)
 		if err != nil {
 			log.Println(err)
