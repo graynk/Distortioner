@@ -55,7 +55,7 @@ func doneMessageWithRepeater(b *tb.Bot, m *tb.Message) {
 		if err != nil {
 			return
 		}
-		time.Sleep(time.Duration(timeout))
+		time.Sleep(time.Duration(timeout) * time.Second)
 		_, err = b.Edit(m, done)
 	}
 }
