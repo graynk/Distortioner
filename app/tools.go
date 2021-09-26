@@ -46,6 +46,9 @@ func justGetTheFile(b *tb.Bot, m *tb.Message) (string, error) {
 func extractPossibleTimeout(err error) (int, error) {
 	// format: "telegram: retry after x (429)"
 	errorString := err.Error()
+	if strings.Contains(errorString, "kicked") {
+		return 0, err
+	}
 	after := "after "
 	retryAfterStringEnd := strings.LastIndex(errorString, after)
 	if retryAfterStringEnd == -1 {
