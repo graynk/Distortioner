@@ -9,6 +9,7 @@ import (
 )
 
 func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
+	log.Printf("start processing animation")
 	if m.Animation.Duration > 30 {
 		b.Send(m.Chat, "Senpai, it's too long..")
 		return
@@ -30,6 +31,7 @@ func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
+	log.Printf("start processing photo")
 	filename, err := justGetTheFile(b, m)
 	if err != nil {
 		return
@@ -45,6 +47,7 @@ func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
+	log.Printf("start processing sticker")
 	filename, err := justGetTheFile(b, m)
 	if err != nil {
 		return
@@ -56,10 +59,12 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleTextDistortion(b *tb.Bot, m *tb.Message) {
+	log.Printf("start processing text")
 	sendMessageWithRepeater(b, m.Chat, distortText(m.Text))
 }
 
 func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
+	log.Printf("start processing video")
 	if m.Video.Duration > 30 {
 		b.Send(m.Chat, "Senpai, it's too long..")
 		return
@@ -75,6 +80,7 @@ func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message) {
+	log.Printf("start processing video note")
 	output, err := handleVideoCommon(b, m)
 	if err != nil {
 		return
@@ -85,6 +91,7 @@ func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
+	log.Printf("start processing voice")
 	filename, err := justGetTheFile(b, m)
 	if err != nil {
 		return
@@ -102,6 +109,7 @@ func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleReplyDistortion(b *tb.Bot, m *tb.Message) {
+	log.Printf("used /distort")
 	if m.ReplyTo == nil {
 		b.Send(m.Chat, "You need to reply with this command to the media you want distorted")
 		return

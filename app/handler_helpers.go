@@ -51,10 +51,12 @@ func doneMessageWithRepeater(b *tb.Bot, m *tb.Message) {
 	done := "Done!"
 	_, err := b.Edit(m, done)
 	for err != nil {
-		timeout, err := extractPossibleTimeout(err)
+		var timeout int
+		timeout, err = extractPossibleTimeout(err)
 		if err != nil {
 			return
 		}
+		log.Printf("sleeping for %d before sending Done\n", timeout)
 		time.Sleep(time.Duration(timeout) * time.Second)
 		_, err = b.Edit(m, done)
 	}
@@ -63,7 +65,8 @@ func doneMessageWithRepeater(b *tb.Bot, m *tb.Message) {
 func sendMessageWithRepeater(b *tb.Bot, chat *tb.Chat, toSend interface{}) (*tb.Message, error) {
 	m, err := b.Send(chat, toSend)
 	for err != nil {
-		timeout, err := extractPossibleTimeout(err)
+		var timeout int
+		timeout, err = extractPossibleTimeout(err)
 		if err != nil {
 			log.Println(err)
 			return nil, err
