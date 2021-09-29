@@ -47,6 +47,10 @@ func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
+	if m.Sticker.Animated {
+		// TODO: there might be a nice way to distort them too, just parse the data and move around stuff, I guess
+		return
+	}
 	log.Printf("start processing sticker")
 	filename, err := justGetTheFile(b, m)
 	if err != nil {
@@ -55,6 +59,7 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(filename)
 	distortImage(filename)
 	distorted := &tb.Sticker{File: tb.FromDisk(filename)}
+	distorted.Emoji = m.Sticker.Emoji
 	sendMessageWithRepeater(b, m.Chat, distorted)
 }
 
@@ -156,10 +161,6 @@ func main() {
 	})
 
 	b.Handle(tb.OnSticker, func(m *tb.Message) {
-		if m.Sticker.Animated {
-			// TODO: there might be a nice way to distort them too, just parse the data and move around stuff, I guess
-			return
-		}
 		handleStickerDistortion(b, m)
 	})
 
