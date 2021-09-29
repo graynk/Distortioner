@@ -28,6 +28,7 @@ podman run -d \
 cd ~/.config/systemd/user/
 podman generate systemd --new --files --name distortioner
 systemctl enable --user container-distortioner.service
+loginctl enable-linger $USER
 ```
 
 ## TODO
