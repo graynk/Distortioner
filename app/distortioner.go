@@ -59,7 +59,6 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(filename)
 	distortImage(filename)
 	distorted := &tb.Sticker{File: tb.FromDisk(filename)}
-	distorted.Emoji = m.Sticker.Emoji
 	sendMessageWithRepeater(b, m.Chat, distorted)
 }
 
