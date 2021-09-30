@@ -8,10 +8,15 @@ import (
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
+const MaxSizeMb = 20_000_000
+
 func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
 	log.Printf("start processing animation")
 	if m.Animation.Duration > 30 {
 		b.Send(m.Chat, "Senpai, it's too long..")
+		return
+	} else if m.Animation.FileSize > MaxSizeMb {
+		b.Send(m.Chat, "Senpai, it's too big..")
 		return
 	}
 
@@ -72,6 +77,9 @@ func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
 	if m.Video.Duration > 30 {
 		b.Send(m.Chat, "Senpai, it's too long..")
 		return
+	} else if m.Video.FileSize > MaxSizeMb {
+		b.Send(m.Chat, "Senpai, it's too big..")
+		return
 	}
 	output, err := handleVideoCommon(b, m)
 	if err != nil {
@@ -84,6 +92,11 @@ func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message) {
+	// video notes are limited with 1minute anyway
+	if m.VideoNote.FileSize > MaxSizeMb {
+		b.Send(m.Chat, "Senpai, it's too big..")
+		return
+	}
 	log.Printf("start processing video note")
 	output, err := handleVideoCommon(b, m)
 	if err != nil {
@@ -95,6 +108,10 @@ func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
+	if m.Voice.FileSize > MaxSizeMb {
+		b.Send(m.Chat, "Senpai, it's too big..")
+		return
+	}
 	log.Printf("start processing voice")
 	filename, err := justGetTheFile(b, m)
 	if err != nil {
