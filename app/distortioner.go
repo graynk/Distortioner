@@ -10,16 +10,19 @@ import (
 
 const MaxSizeMb = 20_000_000
 
-func handleAnimationDistortion(b *tb.Bot, m *tb.Message) {
-	log.Printf("start processing animation")
+func handleAnimationDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 	if m.Animation.Duration > 30 {
 		b.Send(m.Chat, "Senpai, it's too long..")
 		return
 	} else if m.Animation.FileSize > MaxSizeMb {
 		b.Send(m.Chat, "Senpai, it's too big..")
 		return
+	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > AllowedOverTime {
+		b.Send(m.Chat, formatRateLimitResponse(diff))
+		return
 	}
 
+	log.Printf("start processing animation")
 	progressMessage, filename, output, err := handleAnimationCommon(b, m)
 	if err != nil {
 		return
@@ -72,15 +75,18 @@ func handleTextDistortion(b *tb.Bot, m *tb.Message) {
 	sendMessageWithRepeater(b, m.Chat, distortText(m.Text))
 }
 
-func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
-	log.Printf("start processing video")
+func handleVideoDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 	if m.Video.Duration > 30 {
 		b.Send(m.Chat, "Senpai, it's too long..")
 		return
 	} else if m.Video.FileSize > MaxSizeMb {
 		b.Send(m.Chat, "Senpai, it's too big..")
 		return
+	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > AllowedOverTime {
+		b.Send(m.Chat, formatRateLimitResponse(diff))
+		return
 	}
+	log.Printf("start processing video")
 	output, err := handleVideoCommon(b, m)
 	if err != nil {
 		return
@@ -91,10 +97,13 @@ func handleVideoDistortion(b *tb.Bot, m *tb.Message) {
 	sendMessageWithRepeater(b, m.Chat, distorted)
 }
 
-func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message) {
-	// video notes are limited with 1minute anyway
+func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
+	// video notes are limited with 1 minute anyway
 	if m.VideoNote.FileSize > MaxSizeMb {
 		b.Send(m.Chat, "Senpai, it's too big..")
+		return
+	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > AllowedOverTime {
+		b.Send(m.Chat, formatRateLimitResponse(diff))
 		return
 	}
 	log.Printf("start processing video note")
@@ -129,7 +138,7 @@ func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 	sendMessageWithRepeater(b, m.Chat, distorted)
 }
 
-func handleReplyDistortion(b *tb.Bot, m *tb.Message) {
+func handleReplyDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 	log.Printf("used /distort")
 	if m.ReplyTo == nil {
 		b.Send(m.Chat, "You need to reply with this command to the media you want distorted")
@@ -137,7 +146,7 @@ func handleReplyDistortion(b *tb.Bot, m *tb.Message) {
 	}
 	original := m.ReplyTo
 	if original.Animation != nil {
-		handleAnimationDistortion(b, original)
+		handleAnimationDistortion(b, original, rl)
 	} else if original.Sticker != nil {
 		handleStickerDistortion(b, original)
 	} else if original.Photo != nil {
@@ -145,9 +154,9 @@ func handleReplyDistortion(b *tb.Bot, m *tb.Message) {
 	} else if original.Voice != nil {
 		handleVoiceDistortion(b, original)
 	} else if original.Video != nil {
-		handleVideoDistortion(b, original)
+		handleVideoDistortion(b, original, rl)
 	} else if original.VideoNote != nil {
-		handleVideoNoteDistortion(b, original)
+		handleVideoNoteDistortion(b, original, rl)
 	} else if original.Text != "" {
 		handleTextDistortion(b, original)
 	}
@@ -164,16 +173,18 @@ func main() {
 		return
 	}
 
+	rl := NewRateLimiter()
+
 	b.Handle("/start", func(m *tb.Message) {
 		b.Send(m.Chat, "Send me a picture, a sticker, a voice message, a video[note] or a GIF and I'll distort it")
 	})
 
 	b.Handle("/distort", func(m *tb.Message) {
-		handleReplyDistortion(b, m)
+		handleReplyDistortion(b, m, rl)
 	})
 
 	b.Handle(tb.OnAnimation, func(m *tb.Message) {
-		handleAnimationDistortion(b, m)
+		handleAnimationDistortion(b, m, rl)
 	})
 
 	b.Handle(tb.OnSticker, func(m *tb.Message) {
@@ -189,11 +200,11 @@ func main() {
 	})
 
 	b.Handle(tb.OnVideo, func(m *tb.Message) {
-		handleVideoDistortion(b, m)
+		handleVideoDistortion(b, m, rl)
 	})
 
 	b.Handle(tb.OnVideoNote, func(m *tb.Message) {
-		handleVideoNoteDistortion(b, m)
+		handleVideoNoteDistortion(b, m, rl)
 	})
 
 	b.Handle(tb.OnText, func(m *tb.Message) {

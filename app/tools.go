@@ -60,3 +60,7 @@ func extractPossibleTimeout(err error) (int, error) {
 	}
 	return strconv.Atoi(errorString[retryAfterStringEnd+len(after) : timeoutEnd])
 }
+
+func formatRateLimitResponse(diff int64) string {
+	return fmt.Sprintf("Please, not so often. Try again in %d seconds", diff)
+}
