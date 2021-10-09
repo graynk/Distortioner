@@ -164,8 +164,17 @@ func handleReplyDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 
 func main() {
 	b, err := tb.NewBot(tb.Settings{
-		Token:  os.Getenv("DISTORTIONER_BOT_TOKEN"),
-		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
+		Token: os.Getenv("DISTORTIONER_BOT_TOKEN"),
+		Poller: tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {
+			if update.Message == nil {
+				return false
+			}
+			m := update.Message
+			if m.FromGroup() && (len(m.Entities) == 0 || m.Entities[0].Type != tb.EntityCommand) {
+				return false
+			}
+			return true
+		}),
 	})
 
 	if err != nil {
