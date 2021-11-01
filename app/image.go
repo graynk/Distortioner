@@ -1,11 +1,12 @@
 package main
 
 import (
+	"github.com/pkg/errors"
 	"log"
 	"os/exec"
 )
 
-func distortImage(path string) {
+func distortImage(path string) error {
 	err := exec.Command(
 		"mogrify",
 		"-scale", "512x512>", // A reasonable cutoff, I hope
@@ -13,7 +14,8 @@ func distortImage(path string) {
 		"-scale", "200%",
 		path).Run()
 	if err != nil {
+		err = errors.WithStack(err)
 		log.Println(err)
-		panic(err)
 	}
+	return err
 }

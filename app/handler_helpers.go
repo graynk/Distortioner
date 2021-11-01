@@ -23,12 +23,16 @@ func handleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, strin
 	for report := range progressChan {
 		b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
 	}
-	return progressMessage, filename, animationOutput, nil
+	_, err = os.Stat(animationOutput)
+	return progressMessage, filename, animationOutput, err
 }
 
 func handleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
 	progressMessage, filename, animationOutput, err := handleAnimationCommon(b, m)
 	if err != nil {
+		if progressMessage != nil {
+			doneMessageWithRepeater(b, progressMessage, true)
+		}
 		return "", err
 	}
 	defer os.Remove(filename)
@@ -42,13 +46,16 @@ func handleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
 	}
 	output := filename + "Final.mp4"
 	b.Edit(progressMessage, "Muxing frames with sound back together...")
-	collectAnimationAndSound(animationOutput, soundOutput, output)
-	doneMessageWithRepeater(b, progressMessage)
-	return output, nil
+	err = collectAnimationAndSound(animationOutput, soundOutput, output)
+	doneMessageWithRepeater(b, progressMessage, err != nil)
+	return output, err
 }
 
-func doneMessageWithRepeater(b *tb.Bot, m *tb.Message) {
+func doneMessageWithRepeater(b *tb.Bot, m *tb.Message, failed bool) {
 	done := "Done!"
+	if failed {
+		done = FAILED
+	}
 	_, err := b.Edit(m, done)
 	for err != nil {
 		var timeout int

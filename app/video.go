@@ -1,37 +1,16 @@
 package main
 
-import (
-	"bytes"
-	"log"
-	"os/exec"
-)
-
-func collectAnimationAndSound(animation, sound, output string) {
-	var cmd *exec.Cmd
-	var outbuf, errbuf bytes.Buffer
+func collectAnimationAndSound(animation, sound, output string) error {
 	if sound != "" {
-		cmd = exec.Command(
-			"ffmpeg",
-			"-i", animation,
+		return runFfmpeg("-i", animation,
 			"-i", sound,
 			"-c:v", "copy",
 			"-c:a", "copy",
 			output)
-	} else {
-		cmd = exec.Command(
-			"ffmpeg",
-			"-i", animation,
-			"-c:v", "copy",
-			"-an",
-			output)
 	}
-	cmd.Stdout = &outbuf
-	cmd.Stderr = &errbuf
-	err := cmd.Run()
-	if err != nil {
-		log.Println(outbuf.String())
-		log.Println(errbuf.String())
-		log.Println(err)
-		panic(err)
-	}
+	return runFfmpeg("ffmpeg",
+		"-i", animation,
+		"-c:v", "copy",
+		"-an",
+		output)
 }

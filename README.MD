@@ -35,3 +35,5 @@ loginctl enable-linger $USER
 * Distort animated stickers
 * Make distortion increase throughout the video
 * For stickers create and maintain a separate sticker pack for ease of use
+* Don't trust Telegram with reported duration, get my own stats
+* Localization, refactoring, tests

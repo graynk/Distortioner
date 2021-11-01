@@ -9,6 +9,7 @@ import (
 )
 
 const MaxSizeMb = 20_000_000
+const FAILED = "Failed"
 
 func handleAnimationDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 	if m.Animation.Duration > 30 {
@@ -29,7 +30,11 @@ func handleAnimationDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 	}
 	defer os.Remove(filename)
 	defer os.Remove(output)
-	doneMessageWithRepeater(b, progressMessage)
+	failed := err != nil
+	doneMessageWithRepeater(b, progressMessage, failed)
+	if failed {
+		return
+	}
 
 	distorted := &tb.Animation{File: tb.FromDisk(output)}
 	if m.Caption != "" {
@@ -45,8 +50,12 @@ func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
 		return
 	}
 	defer os.Remove(filename)
-	distortImage(filename)
+	err = distortImage(filename)
 	// sure would be nice to have generics here
+	if err != nil {
+		sendMessageWithRepeater(b, m.Chat, FAILED)
+		return
+	}
 	distorted := &tb.Photo{File: tb.FromDisk(filename)}
 	if m.Caption != "" {
 		distorted.Caption = distortText(m.Caption)
@@ -65,7 +74,11 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 		return
 	}
 	defer os.Remove(filename)
-	distortImage(filename)
+	err = distortImage(filename)
+	if err != nil {
+		sendMessageWithRepeater(b, m.Chat, FAILED)
+		return
+	}
 	distorted := &tb.Sticker{File: tb.FromDisk(filename)}
 	sendMessageWithRepeater(b, m.Chat, distorted)
 }
@@ -130,7 +143,8 @@ func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 	output := filename + ".ogg"
 	err = distortSound(filename, output)
 	if err != nil {
-		panic(err)
+		sendMessageWithRepeater(b, m.Chat, FAILED)
+		return
 	}
 	defer os.Remove(output)
 
