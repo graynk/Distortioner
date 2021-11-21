@@ -8,8 +8,7 @@ func collectAnimationAndSound(animation, sound, output string) error {
 			"-c:a", "copy",
 			output)
 	}
-	return runFfmpeg("ffmpeg",
-		"-i", animation,
+	return runFfmpeg("-i", animation,
 		"-c:v", "copy",
 		"-an",
 		output)
