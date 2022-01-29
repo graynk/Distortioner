@@ -15,7 +15,7 @@ Fill out your bot token in distortioner.env, then launch as usual:
 sudo docker run -d --restart unless-stopped \
    --name distortioner \
    --env-file distortioner.env \
-   -v /path/to/database/db.sqlite:/app/data/distortioner.sqlite
+   -v /path/to/database/directory:/app/data
    ghcr.io/graynk/distortioner:latest
 ```
 
