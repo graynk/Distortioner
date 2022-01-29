@@ -33,9 +33,16 @@ systemctl enable --user container-distortioner.service
 loginctl enable-linger $USER
 ```
 
+## What gets collected
+The bot _technically_ is able __all__ messages in the group due to limitations imposed by Telegram 
+(I've tried making it work with privacy mode enabled, but this renders `/distort` command useless).
+
+However, none of it is stored or analysed in any way. The only thing I collect is user/chat IDs for the stats.
+
+In addition to that, if the bot fails to distort some piece of media, it will not get deleted as well, to help me debug such cases
+
 ## TODO
 * Distort animated stickers
 * Make distortion increase throughout the video
 * For stickers create and maintain a separate sticker pack for ease of use
-* Don't trust Telegram with reported duration, get my own stats
 * Localization, refactoring, tests
