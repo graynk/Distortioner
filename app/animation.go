@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"log"
 	"os"
 	"os/exec"
@@ -10,40 +9,45 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 func distortVideo(filename, output string, progressChan chan string) {
 	progressChan <- "Extracting frames..."
 	defer close(progressChan)
-	framesFir := filename + "Frames"
-	err := os.Mkdir(framesFir, 0755)
+	framesDir := filename + "Frames"
+	err := os.Mkdir(framesDir, 0755)
 	if err != nil {
 		err = errors.WithStack(err)
 		log.Println(err)
 		return
 	}
-	defer os.RemoveAll(framesFir)
-	frameRateFraction, totalFrames, err := getFrameRateFractionAndFrameCount(filename)
+	defer os.RemoveAll(framesDir)
+	frameRateFraction, duration, err := getFrameRateFractionAndDuration(filename)
 	if err != nil {
-		progressChan <- "Failed"
+		progressChan <- Failed
+		return
+	} else if duration > 30 {
+		progressChan <- TooLong
 		return
 	}
-	numberedFileName := fmt.Sprintf("%s/%s%%04d.png", framesFir, filename)
+	numberedFileName := fmt.Sprintf("%s/%s%%04d.png", framesDir, filename)
 	err = extractFramesFromVideo(frameRateFraction, filename, numberedFileName)
 	if err != nil {
-		progressChan <- "Failed"
+		progressChan <- Failed
 		return
 	}
 
 	distortedFrames := 0
 	doneChan := make(chan int, 8)
-	go poolDistortImages(numberedFileName, totalFrames, doneChan)
+	go poolDistortImages(framesDir, doneChan)
 
 	lastUpdate := time.Now()
-	for distortedFrames != totalFrames {
+	for totalFrames := <-doneChan; distortedFrames != totalFrames; {
 		framesDistorted := <-doneChan
 		if framesDistorted == -1 {
-			progressChan <- "Failed"
+			progressChan <- Failed
 			return
 		}
 		distortedFrames += framesDistorted
@@ -56,19 +60,18 @@ func distortVideo(filename, output string, progressChan chan string) {
 	progressChan <- "Collecting frames..."
 	err = collectFramesToVideo(numberedFileName, frameRateFraction, output)
 	if err != nil {
-		progressChan <- "Failed"
+		progressChan <- Failed
 	}
 	return
 }
 
-func getFrameRateFractionAndFrameCount(filename string) (string, int, error) {
+func getFrameRateFractionAndDuration(filename string) (string, float64, error) {
 	output, err := exec.Command(
 		"ffprobe",
 		"-v", "error",
 		"-select_streams", "v",
 		"-of", "default=noprint_wrappers=1:nokey=1",
-		"-count_frames",
-		"-show_entries", "stream=nb_read_frames,avg_frame_rate",
+		"-show_entries", "stream=avg_frame_rate, duration",
 		filename).Output()
 	if err != nil {
 		err = errors.WithStack(err)
@@ -76,12 +79,12 @@ func getFrameRateFractionAndFrameCount(filename string) (string, int, error) {
 		return "", 0, err
 	}
 	split := strings.Split(string(output), "\n")
-	frameCount, err := strconv.Atoi(split[1])
+	duration, err := strconv.ParseFloat(split[1], 32)
 	if err != nil {
 		err = errors.WithStack(err)
 		log.Println(err)
 	}
-	return split[0], frameCount, err
+	return split[0], duration, err
 }
 
 func extractFramesFromVideo(frameRateFraction, filename, numberedFileName string) error {
@@ -100,20 +103,27 @@ func collectFramesToVideo(numberedFileName, frameRateFraction, filename string) 
 		filename)
 }
 
-func poolDistortImages(numberedFileName string, frameCount int, doneChan chan int) {
+func poolDistortImages(frameDir string, doneChan chan int) {
 	cpuCount := runtime.NumCPU()
 	sem := make(chan bool, cpuCount)
-	for frame := 1; frame <= frameCount; frame++ {
+	frames, err := os.ReadDir(frameDir)
+	if err != nil {
+		doneChan <- -1
+		doneChan <- -1
+		return
+	}
+	doneChan <- len(frames)
+	for i, frame := range frames {
 		sem <- true
-		go func(frame int) {
+		go func(i int, frame string) {
 			defer func() {
 				<-sem
 				doneChan <- 1
 			}()
-			err := distortImage(fmt.Sprintf(numberedFileName, frame))
+			err := distortImage(fmt.Sprintf("%s/%s", frameDir, frame))
 			if err != nil {
 				doneChan <- -1
 			}
-		}(frame)
+		}(i, frame.Name())
 	}
 }

@@ -8,15 +8,16 @@ import (
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
-const MaxSizeMb = 20_000_000
-const FAILED = "Failed"
+const (
+	MaxSizeMb = 20_000_000
+	Failed    = "Failed"
+	TooLong   = "Senpai, it's too long.."
+	TooBig    = "Senpai, it's too big.."
+)
 
 func handleAnimationDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
-	if m.Animation.Duration > 30 {
-		b.Send(m.Chat, "Senpai, it's too long..")
-		return
-	} else if m.Animation.FileSize > MaxSizeMb {
-		b.Send(m.Chat, "Senpai, it's too big..")
+	if m.Animation.FileSize > MaxSizeMb {
+		b.Send(m.Chat, TooBig)
 		return
 	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > AllowedOverTime {
 		b.Send(m.Chat, formatRateLimitResponse(diff))
@@ -25,16 +26,13 @@ func handleAnimationDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 
 	log.Printf("start processing animation")
 	progressMessage, filename, output, err := handleAnimationCommon(b, m)
-	if err != nil {
-		return
-	}
-	defer os.Remove(filename)
-	defer os.Remove(output)
-	failed := err != nil
+	failed := err != nil && progressMessage.Text != TooLong
 	doneMessageWithRepeater(b, progressMessage, failed)
 	if failed {
 		return
 	}
+	defer os.Remove(filename)
+	defer os.Remove(output)
 
 	distorted := &tb.Animation{File: tb.FromDisk(output)}
 	if m.Caption != "" {
@@ -53,7 +51,7 @@ func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
 	err = distortImage(filename)
 	// sure would be nice to have generics here
 	if err != nil {
-		sendMessageWithRepeater(b, m.Chat, FAILED)
+		sendMessageWithRepeater(b, m.Chat, Failed)
 		return
 	}
 	distorted := &tb.Photo{File: tb.FromDisk(filename)}
@@ -76,7 +74,7 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 	defer os.Remove(filename)
 	err = distortImage(filename)
 	if err != nil {
-		sendMessageWithRepeater(b, m.Chat, FAILED)
+		sendMessageWithRepeater(b, m.Chat, Failed)
 		return
 	}
 	distorted := &tb.Sticker{File: tb.FromDisk(filename)}
@@ -89,11 +87,8 @@ func handleTextDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleVideoDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
-	if m.Video.Duration > 30 {
-		b.Send(m.Chat, "Senpai, it's too long..")
-		return
-	} else if m.Video.FileSize > MaxSizeMb {
-		b.Send(m.Chat, "Senpai, it's too big..")
+	if m.Video.FileSize > MaxSizeMb {
+		b.Send(m.Chat, TooBig)
 		return
 	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > AllowedOverTime {
 		b.Send(m.Chat, formatRateLimitResponse(diff))
@@ -113,7 +108,7 @@ func handleVideoDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 	// video notes are limited with 1 minute anyway
 	if m.VideoNote.FileSize > MaxSizeMb {
-		b.Send(m.Chat, "Senpai, it's too big..")
+		b.Send(m.Chat, TooBig)
 		return
 	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > AllowedOverTime {
 		b.Send(m.Chat, formatRateLimitResponse(diff))
@@ -131,7 +126,7 @@ func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 
 func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 	if m.Voice.FileSize > MaxSizeMb {
-		b.Send(m.Chat, "Senpai, it's too big..")
+		b.Send(m.Chat, TooBig)
 		return
 	}
 	log.Printf("start processing voice")
@@ -143,7 +138,7 @@ func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 	output := filename + ".ogg"
 	err = distortSound(filename, output)
 	if err != nil {
-		sendMessageWithRepeater(b, m.Chat, FAILED)
+		sendMessageWithRepeater(b, m.Chat, Failed)
 		return
 	}
 	defer os.Remove(output)

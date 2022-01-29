@@ -1,10 +1,11 @@
 package main
 
 import (
-	tb "gopkg.in/tucnak/telebot.v2"
 	"log"
 	"os"
 	"time"
+
+	tb "gopkg.in/tucnak/telebot.v2"
 )
 
 func handleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, string, error) {
@@ -21,7 +22,7 @@ func handleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, strin
 	progressChan := make(chan string, 3)
 	go distortVideo(filename, animationOutput, progressChan)
 	for report := range progressChan {
-		b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
+		progressMessage, _ = b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
 	}
 	_, err = os.Stat(animationOutput)
 	return progressMessage, filename, animationOutput, err
@@ -30,7 +31,7 @@ func handleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, strin
 func handleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
 	progressMessage, filename, animationOutput, err := handleAnimationCommon(b, m)
 	if err != nil {
-		if progressMessage != nil {
+		if progressMessage != nil && progressMessage.Text != TooLong {
 			doneMessageWithRepeater(b, progressMessage, true)
 		}
 		return "", err
@@ -54,7 +55,7 @@ func handleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
 func doneMessageWithRepeater(b *tb.Bot, m *tb.Message, failed bool) {
 	done := "Done!"
 	if failed {
-		done = FAILED
+		done = Failed
 	}
 	_, err := b.Edit(m, done)
 	for err != nil {
