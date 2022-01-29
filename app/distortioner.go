@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	tb "gopkg.in/tucnak/telebot.v2"
@@ -169,20 +170,25 @@ func handleReplyDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 
 func main() {
 	db := initDB()
+	defer db.Close()
 
 	b, err := tb.NewBot(tb.Settings{
 		Token: os.Getenv("DISTORTIONER_BOT_TOKEN"),
-		Poller: tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {
-			if update.Message == nil {
-				return false
-			}
-			m := update.Message
-			if m.FromGroup() && (len(m.Entities) == 0 || m.Entities[0].Type != tb.EntityCommand) {
-				return false
-			}
+	})
+	b.Poller = tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {
+		if update.Message == nil {
+			return false
+		}
+		m := update.Message
+		if m.FromGroup() && (len(m.Entities) == 0 || m.Entities[0].Type != tb.EntityCommand) {
+			return false
+		}
+		if m.FromGroup() && strings.HasSuffix(update.Message.Text, b.Me.Username) {
+			go db.SaveStat(update.Message.ReplyTo)
+		} else {
 			go db.SaveStat(update.Message)
-			return true
-		}),
+		}
+		return true
 	})
 
 	if err != nil {

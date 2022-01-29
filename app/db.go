@@ -40,6 +40,10 @@ func initDB() distortionerDB {
 }
 
 func (d *distortionerDB) SaveStat(message *tb.Message) {
+	if message == nil {
+		log.Println("nil pointer passed to SaveStat")
+		return
+	}
 	messageType := "text"
 	switch {
 	case message.Animation != nil:
@@ -59,4 +63,8 @@ func (d *distortionerDB) SaveStat(message *tb.Message) {
 	if err != nil {
 		log.Println(err)
 	}
+}
+
+func (d *distortionerDB) Close() {
+	d.db.Close()
 }
