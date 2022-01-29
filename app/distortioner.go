@@ -183,8 +183,10 @@ func main() {
 		if m.FromGroup() && (len(m.Entities) == 0 || m.Entities[0].Type != tb.EntityCommand) {
 			return false
 		}
-		if m.FromGroup() && strings.HasSuffix(update.Message.Text, b.Me.Username) {
-			go db.SaveStat(update.Message.ReplyTo)
+		if m.FromGroup() {
+			if strings.HasSuffix(update.Message.Text, b.Me.Username) {
+				go db.SaveStat(update.Message.ReplyTo)
+			}
 		} else {
 			go db.SaveStat(update.Message)
 		}
