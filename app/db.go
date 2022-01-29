@@ -15,7 +15,7 @@ type distortionerDB struct {
 }
 
 func initDB() distortionerDB {
-	db, err := sql.Open("sqlite3", "file:distortioner.sqlite?cache=shared")
+	db, err := sql.Open("sqlite3", "file:data/distortioner.sqlite?cache=shared")
 	if err != nil {
 		log.Fatal(err)
 	}
