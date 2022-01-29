@@ -25,6 +25,7 @@ podman run -d \
    --label "io.containers.autoupdate=image" \
    --name distortioner \
    --env-file distortioner.env \
+   -v /path/to/database/directory:/app/data
    ghcr.io/graynk/distortioner:latest
 cd ~/.config/systemd/user/
 podman generate systemd --new --files --name distortioner
