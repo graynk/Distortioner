@@ -24,7 +24,6 @@ func handleAnimationDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 		return
 	}
 
-	log.Printf("start processing animation")
 	progressMessage, filename, output, err := handleAnimationCommon(b, m)
 	failed := err != nil && progressMessage.Text != TooLong
 	doneMessageWithRepeater(b, progressMessage, failed)
@@ -42,7 +41,6 @@ func handleAnimationDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 }
 
 func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
-	log.Printf("start processing photo")
 	filename, err := justGetTheFile(b, m)
 	if err != nil {
 		return
@@ -66,7 +64,6 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 		// TODO: there might be a nice way to distort them too, just parse the data and move around stuff, I guess
 		return
 	}
-	log.Printf("start processing sticker")
 	filename, err := justGetTheFile(b, m)
 	if err != nil {
 		return
@@ -82,7 +79,6 @@ func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleTextDistortion(b *tb.Bot, m *tb.Message) {
-	log.Printf("start processing text")
 	sendMessageWithRepeater(b, m.Chat, distortText(m.Text))
 }
 
@@ -94,7 +90,6 @@ func handleVideoDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 		b.Send(m.Chat, formatRateLimitResponse(diff))
 		return
 	}
-	log.Printf("start processing video")
 	output, err := handleVideoCommon(b, m)
 	if err != nil {
 		return
@@ -114,7 +109,6 @@ func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 		b.Send(m.Chat, formatRateLimitResponse(diff))
 		return
 	}
-	log.Printf("start processing video note")
 	output, err := handleVideoCommon(b, m)
 	if err != nil {
 		return
@@ -129,7 +123,6 @@ func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 		b.Send(m.Chat, TooBig)
 		return
 	}
-	log.Printf("start processing voice")
 	filename, err := justGetTheFile(b, m)
 	if err != nil {
 		return
@@ -148,9 +141,12 @@ func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 }
 
 func handleReplyDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
-	log.Printf("used /distort")
 	if m.ReplyTo == nil {
-		b.Send(m.Chat, "You need to reply with this command to the media you want distorted")
+		msg := "You need to reply with this command to the media you want distorted."
+		if m.FromGroup() {
+			msg += "\nYou might also need to make chat history visible for new members if your group is private."
+		}
+		b.Send(m.Chat, msg)
 		return
 	}
 	original := m.ReplyTo
@@ -172,6 +168,8 @@ func handleReplyDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 }
 
 func main() {
+	db := initDB()
+
 	b, err := tb.NewBot(tb.Settings{
 		Token: os.Getenv("DISTORTIONER_BOT_TOKEN"),
 		Poller: tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {
@@ -182,6 +180,7 @@ func main() {
 			if m.FromGroup() && (len(m.Entities) == 0 || m.Entities[0].Type != tb.EntityCommand) {
 				return false
 			}
+			go db.SaveStat(update.Message)
 			return true
 		}),
 	})
