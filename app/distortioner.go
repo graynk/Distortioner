@@ -7,27 +7,28 @@ import (
 	"time"
 
 	tb "gopkg.in/tucnak/telebot.v2"
+
+	"github.com/graynk/distortioner/distorters"
+	"github.com/graynk/distortioner/stats"
+	"github.com/graynk/distortioner/tools"
 )
 
 const (
 	MaxSizeMb = 20_000_000
-	Failed    = "Failed"
-	TooLong   = "Senpai, it's too long.."
-	TooBig    = "Senpai, it's too big.."
 )
 
-func handleAnimationDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
+func handleAnimationDistortion(b *tb.Bot, m *tb.Message, rl *tools.RateLimiter) {
 	if m.Animation.FileSize > MaxSizeMb {
-		b.Send(m.Chat, TooBig)
+		b.Send(m.Chat, distorters.TooBig)
 		return
-	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > AllowedOverTime {
-		b.Send(m.Chat, formatRateLimitResponse(diff))
+	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
+		b.Send(m.Chat, tools.FormatRateLimitResponse(diff))
 		return
 	}
 
-	progressMessage, filename, output, err := handleAnimationCommon(b, m)
-	failed := err != nil && progressMessage.Text != TooLong
-	doneMessageWithRepeater(b, progressMessage, failed)
+	progressMessage, filename, output, err := HandleAnimationCommon(b, m)
+	failed := err != nil && progressMessage.Text != distorters.TooLong
+	DoneMessageWithRepeater(b, progressMessage, failed)
 	if failed {
 		return
 	}
@@ -36,112 +37,112 @@ func handleAnimationDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 
 	distorted := &tb.Animation{File: tb.FromDisk(output)}
 	if m.Caption != "" {
-		distorted.Caption = distortText(m.Caption)
+		distorted.Caption = distorters.DistortText(m.Caption)
 	}
-	sendMessageWithRepeater(b, m.Chat, distorted)
+	SendMessageWithRepeater(b, m.Chat, distorted)
 }
 
 func handlePhotoDistortion(b *tb.Bot, m *tb.Message) {
-	filename, err := justGetTheFile(b, m)
+	filename, err := tools.JustGetTheFile(b, m)
 	if err != nil {
 		return
 	}
 	defer os.Remove(filename)
-	err = distortImage(filename)
+	err = distorters.DistortImage(filename)
 	// sure would be nice to have generics here
 	if err != nil {
-		sendMessageWithRepeater(b, m.Chat, Failed)
+		SendMessageWithRepeater(b, m.Chat, distorters.Failed)
 		return
 	}
 	distorted := &tb.Photo{File: tb.FromDisk(filename)}
 	if m.Caption != "" {
-		distorted.Caption = distortText(m.Caption)
+		distorted.Caption = distorters.DistortText(m.Caption)
 	}
-	sendMessageWithRepeater(b, m.Chat, distorted)
+	SendMessageWithRepeater(b, m.Chat, distorted)
 }
 
 func handleStickerDistortion(b *tb.Bot, m *tb.Message) {
 	if m.Sticker.Animated {
-		// TODO: there might be a nice way to distort them too, just parse the data and move around stuff, I guess
+		// TODO: there might be a nice way to distort them too, just parse the data and move stuff around, I guess
 		return
 	}
-	filename, err := justGetTheFile(b, m)
+	filename, err := tools.JustGetTheFile(b, m)
 	if err != nil {
 		return
 	}
 	defer os.Remove(filename)
-	err = distortImage(filename)
+	err = distorters.DistortImage(filename)
 	if err != nil {
-		sendMessageWithRepeater(b, m.Chat, Failed)
+		SendMessageWithRepeater(b, m.Chat, distorters.Failed)
 		return
 	}
 	distorted := &tb.Sticker{File: tb.FromDisk(filename)}
-	sendMessageWithRepeater(b, m.Chat, distorted)
+	SendMessageWithRepeater(b, m.Chat, distorted)
 }
 
 func handleTextDistortion(b *tb.Bot, m *tb.Message) {
-	sendMessageWithRepeater(b, m.Chat, distortText(m.Text))
+	SendMessageWithRepeater(b, m.Chat, distorters.DistortText(m.Text))
 }
 
-func handleVideoDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
+func handleVideoDistortion(b *tb.Bot, m *tb.Message, rl *tools.RateLimiter) {
 	if m.Video.FileSize > MaxSizeMb {
-		b.Send(m.Chat, TooBig)
+		b.Send(m.Chat, distorters.TooBig)
 		return
-	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > AllowedOverTime {
-		b.Send(m.Chat, formatRateLimitResponse(diff))
+	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
+		b.Send(m.Chat, tools.FormatRateLimitResponse(diff))
 		return
 	}
-	output, err := handleVideoCommon(b, m)
+	output, err := HandleVideoCommon(b, m)
 	if err != nil {
 		return
 	}
 	defer os.Remove(output)
 
 	distorted := &tb.Video{File: tb.FromDisk(output)}
-	sendMessageWithRepeater(b, m.Chat, distorted)
+	SendMessageWithRepeater(b, m.Chat, distorted)
 }
 
-func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
+func handleVideoNoteDistortion(b *tb.Bot, m *tb.Message, rl *tools.RateLimiter) {
 	// video notes are limited with 1 minute anyway
 	if m.VideoNote.FileSize > MaxSizeMb {
-		b.Send(m.Chat, TooBig)
+		b.Send(m.Chat, distorters.TooBig)
 		return
-	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > AllowedOverTime {
-		b.Send(m.Chat, formatRateLimitResponse(diff))
+	} else if rate, diff := rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
+		b.Send(m.Chat, tools.FormatRateLimitResponse(diff))
 		return
 	}
-	output, err := handleVideoCommon(b, m)
+	output, err := HandleVideoCommon(b, m)
 	if err != nil {
 		return
 	}
 	defer os.Remove(output)
 	distorted := &tb.VideoNote{File: tb.FromDisk(output)}
-	sendMessageWithRepeater(b, m.Chat, distorted)
+	SendMessageWithRepeater(b, m.Chat, distorted)
 }
 
 func handleVoiceDistortion(b *tb.Bot, m *tb.Message) {
 	if m.Voice.FileSize > MaxSizeMb {
-		b.Send(m.Chat, TooBig)
+		b.Send(m.Chat, distorters.TooBig)
 		return
 	}
-	filename, err := justGetTheFile(b, m)
+	filename, err := tools.JustGetTheFile(b, m)
 	if err != nil {
 		return
 	}
 	defer os.Remove(filename)
 	output := filename + ".ogg"
-	err = distortSound(filename, output)
+	err = distorters.DistortSound(filename, output)
 	if err != nil {
-		sendMessageWithRepeater(b, m.Chat, Failed)
+		SendMessageWithRepeater(b, m.Chat, distorters.Failed)
 		return
 	}
 	defer os.Remove(output)
 
 	distorted := &tb.Voice{File: tb.FromDisk(output)}
-	sendMessageWithRepeater(b, m.Chat, distorted)
+	SendMessageWithRepeater(b, m.Chat, distorted)
 }
 
-func handleReplyDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
+func handleReplyDistortion(b *tb.Bot, m *tb.Message, rl *tools.RateLimiter) {
 	if m.ReplyTo == nil {
 		msg := "You need to reply with this command to the media you want distorted."
 		if m.FromGroup() {
@@ -169,7 +170,7 @@ func handleReplyDistortion(b *tb.Bot, m *tb.Message, rl *RateLimiter) {
 }
 
 func main() {
-	db := initDB()
+	db := stats.InitDB()
 	defer db.Close()
 
 	b, err := tb.NewBot(tb.Settings{
@@ -180,16 +181,11 @@ func main() {
 			return false
 		}
 		m := update.Message
-		if m.FromGroup() && (len(m.Entities) == 0 || m.Entities[0].Type != tb.EntityCommand) {
+		isCommand := len(m.Entities) > 0 && m.Entities[0].Type == tb.EntityCommand
+		if m.FromGroup() && !(isCommand && strings.HasSuffix(update.Message.Text, b.Me.Username)) {
 			return false
 		}
-		if m.FromGroup() {
-			if strings.HasSuffix(update.Message.Text, b.Me.Username) {
-				go db.SaveStat(update.Message.ReplyTo)
-			}
-		} else {
-			go db.SaveStat(update.Message)
-		}
+		go db.SaveStat(update.Message, isCommand)
 		return true
 	})
 
@@ -198,7 +194,7 @@ func main() {
 		return
 	}
 
-	rl := NewRateLimiter()
+	rl := tools.NewRateLimiter()
 
 	b.Handle("/start", func(m *tb.Message) {
 		b.Send(m.Chat, "Send me a picture, a sticker, a voice message, a video[note] or a GIF and I'll distort it")
@@ -233,9 +229,6 @@ func main() {
 	})
 
 	b.Handle(tb.OnText, func(m *tb.Message) {
-		if m.FromGroup() {
-			return
-		}
 		handleTextDistortion(b, m)
 	})
 

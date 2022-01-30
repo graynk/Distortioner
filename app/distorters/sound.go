@@ -1,6 +1,6 @@
-package main
+package distorters
 
-func distortSound(filename, output string) error {
+func DistortSound(filename, output string) error {
 	return runFfmpeg(
 		"-i", filename,
 		"-vn",

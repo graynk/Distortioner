@@ -1,4 +1,4 @@
-package main
+package stats
 
 import (
 	"database/sql"
@@ -9,17 +9,17 @@ import (
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
-type distortionerDB struct {
+type DistortionerDB struct {
 	db     *sql.DB
 	insert *sql.Stmt
 }
 
-func initDB() distortionerDB {
+func InitDB() DistortionerDB {
 	db, err := sql.Open("sqlite3", "file:data/distortioner.sqlite?cache=shared")
 	if err != nil {
 		log.Fatal(err)
 	}
-	dist := distortionerDB{
+	dist := DistortionerDB{
 		db: db,
 	}
 	db.SetMaxOpenConns(1)
@@ -39,9 +39,13 @@ func initDB() distortionerDB {
 	return dist
 }
 
-func (d *distortionerDB) SaveStat(message *tb.Message) {
+func (d *DistortionerDB) SaveStat(message *tb.Message, isCommand bool) {
 	if message == nil {
 		log.Println("nil pointer passed to SaveStat")
+		return
+	}
+	if isCommand {
+		d.SaveStat(message.ReplyTo, false)
 		return
 	}
 	messageType := "text"
@@ -65,6 +69,6 @@ func (d *distortionerDB) SaveStat(message *tb.Message) {
 	}
 }
 
-func (d *distortionerDB) Close() {
+func (d *DistortionerDB) Close() {
 	d.db.Close()
 }

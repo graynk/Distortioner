@@ -6,21 +6,24 @@ import (
 	"time"
 
 	tb "gopkg.in/tucnak/telebot.v2"
+
+	"github.com/graynk/distortioner/distorters"
+	"github.com/graynk/distortioner/tools"
 )
 
-func handleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, string, error) {
-	progressMessage, err := sendMessageWithRepeater(b, m.Chat, "Downloading...")
+func HandleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, string, error) {
+	progressMessage, err := SendMessageWithRepeater(b, m.Chat, "Downloading...")
 	if err != nil {
 		log.Println(err)
 		return nil, "", "", err
 	}
-	filename, err := justGetTheFile(b, m)
+	filename, err := tools.JustGetTheFile(b, m)
 	if err != nil {
 		return nil, "", "", err
 	}
 	animationOutput := filename + ".mp4"
 	progressChan := make(chan string, 3)
-	go distortVideo(filename, animationOutput, progressChan)
+	go distorters.DistortVideo(filename, animationOutput, progressChan)
 	for report := range progressChan {
 		progressMessage, _ = b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
 	}
@@ -28,18 +31,18 @@ func handleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, strin
 	return progressMessage, filename, animationOutput, err
 }
 
-func handleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
-	progressMessage, filename, animationOutput, err := handleAnimationCommon(b, m)
+func HandleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
+	progressMessage, filename, animationOutput, err := HandleAnimationCommon(b, m)
 	if err != nil {
-		if progressMessage != nil && progressMessage.Text != TooLong {
-			doneMessageWithRepeater(b, progressMessage, true)
+		if progressMessage != nil && progressMessage.Text != distorters.TooLong {
+			DoneMessageWithRepeater(b, progressMessage, true)
 		}
 		return "", err
 	}
 	defer os.Remove(filename)
 	defer os.Remove(animationOutput)
 	soundOutput := filename + ".ogg"
-	err = distortSound(filename, soundOutput)
+	err = distorters.DistortSound(filename, soundOutput)
 	if err != nil {
 		soundOutput = ""
 	} else {
@@ -47,34 +50,40 @@ func handleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
 	}
 	output := filename + "Final.mp4"
 	b.Edit(progressMessage, "Muxing frames with sound back together...")
-	err = collectAnimationAndSound(animationOutput, soundOutput, output)
-	doneMessageWithRepeater(b, progressMessage, err != nil)
+	err = distorters.CollectAnimationAndSound(animationOutput, soundOutput, output)
+	DoneMessageWithRepeater(b, progressMessage, err != nil)
 	return output, err
 }
 
-func doneMessageWithRepeater(b *tb.Bot, m *tb.Message, failed bool) {
-	done := "Done!"
+func dealWithStatusMessage(b *tb.Bot, m *tb.Message, failed bool) error {
+	var err error
 	if failed {
-		done = Failed
+		_, err = b.Edit(m, distorters.Failed)
+	} else {
+		err = b.Delete(m)
 	}
-	_, err := b.Edit(m, done)
+	return err
+}
+
+func DoneMessageWithRepeater(b *tb.Bot, m *tb.Message, failed bool) {
+	err := dealWithStatusMessage(b, m, failed)
 	for err != nil {
 		var timeout int
-		timeout, err = extractPossibleTimeout(err)
+		timeout, err = tools.ExtractPossibleTimeout(err)
 		if err != nil {
 			return
 		}
-		log.Printf("sleeping for %d before sending Done\n", timeout)
+		log.Printf("sleeping for %d before finishing up\n", timeout)
 		time.Sleep(time.Duration(timeout) * time.Second)
-		_, err = b.Edit(m, done)
+		err = dealWithStatusMessage(b, m, failed)
 	}
 }
 
-func sendMessageWithRepeater(b *tb.Bot, chat *tb.Chat, toSend interface{}) (*tb.Message, error) {
+func SendMessageWithRepeater(b *tb.Bot, chat *tb.Chat, toSend interface{}) (*tb.Message, error) {
 	m, err := b.Send(chat, toSend)
 	for err != nil {
 		var timeout int
-		timeout, err = extractPossibleTimeout(err)
+		timeout, err = tools.ExtractPossibleTimeout(err)
 		if err != nil {
 			log.Println(err)
 			return nil, err

@@ -1,10 +1,11 @@
-package main
+package distorters
 
 import (
 	"bytes"
-	"github.com/pkg/errors"
 	"log"
 	"os/exec"
+
+	"github.com/pkg/errors"
 )
 
 func runFfmpeg(args ...string) error {

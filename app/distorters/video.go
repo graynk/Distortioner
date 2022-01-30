@@ -1,6 +1,6 @@
-package main
+package distorters
 
-func collectAnimationAndSound(animation, sound, output string) error {
+func CollectAnimationAndSound(animation, sound, output string) error {
 	if sound != "" {
 		return runFfmpeg("-i", animation,
 			"-i", sound,

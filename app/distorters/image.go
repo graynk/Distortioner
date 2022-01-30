@@ -1,12 +1,13 @@
-package main
+package distorters
 
 import (
-	"github.com/pkg/errors"
 	"log"
 	"os/exec"
+
+	"github.com/pkg/errors"
 )
 
-func distortImage(path string) error {
+func DistortImage(path string) error {
 	err := exec.Command(
 		"mogrify",
 		"-scale", "512x512>", // A reasonable cutoff, I hope

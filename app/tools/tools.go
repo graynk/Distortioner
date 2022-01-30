@@ -1,23 +1,24 @@
-package main
+package tools
 
 import (
 	"fmt"
-	"github.com/google/uuid"
-	tb "gopkg.in/tucnak/telebot.v2"
 	"log"
 	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
+	tb "gopkg.in/tucnak/telebot.v2"
 )
 
 const progress = "Processing frames...\n<code>[----------] %d%%</code>"
 
-func generateProgressMessage(done, total int) string {
+func GenerateProgressMessage(done, total int) string {
 	fraction := float64(done) / float64(total)
 	message := fmt.Sprintf(progress, int(fraction*100))
 	return strings.Replace(message, "-", "=", int(fraction*10))
 }
 
-func justGetTheFile(b *tb.Bot, m *tb.Message) (string, error) {
+func JustGetTheFile(b *tb.Bot, m *tb.Message) (string, error) {
 	var file tb.File
 	filename := uuid.New().String()
 	switch {
@@ -43,7 +44,7 @@ func justGetTheFile(b *tb.Bot, m *tb.Message) (string, error) {
 	return filename, err
 }
 
-func extractPossibleTimeout(err error) (int, error) {
+func ExtractPossibleTimeout(err error) (int, error) {
 	// format: "telegram: retry after x (429)"
 	errorString := err.Error()
 	if strings.Contains(errorString, "kicked") {
@@ -61,6 +62,6 @@ func extractPossibleTimeout(err error) (int, error) {
 	return strconv.Atoi(errorString[retryAfterStringEnd+len(after) : timeoutEnd])
 }
 
-func formatRateLimitResponse(diff int64) string {
+func FormatRateLimitResponse(diff int64) string {
 	return fmt.Sprintf("Please, not so often. Try again in %d seconds", diff)
 }

@@ -1,11 +1,11 @@
-package main
+package distorters
 
 import (
 	"strings"
 	"unicode"
 )
 
-func distortText(text string) string {
+func DistortText(text string) string {
 	count := 0
 	return strings.Map(func(r rune) rune {
 		count++ // index in `i, r := range text` counts +2 for 2-byte symbols, so count separate count is needed anyway

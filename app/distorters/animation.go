@@ -1,4 +1,4 @@
-package main
+package distorters
 
 import (
 	"fmt"
@@ -11,9 +11,17 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+
+	"github.com/graynk/distortioner/tools"
 )
 
-func distortVideo(filename, output string, progressChan chan string) {
+const (
+	Failed  = "Failed"
+	TooLong = "Senpai, it's too long.."
+	TooBig  = "Senpai, it's too big.."
+)
+
+func DistortVideo(filename, output string, progressChan chan string) {
 	progressChan <- "Extracting frames..."
 	defer close(progressChan)
 	framesDir := filename + "Frames"
@@ -24,7 +32,7 @@ func distortVideo(filename, output string, progressChan chan string) {
 		return
 	}
 	defer os.RemoveAll(framesDir)
-	frameRateFraction, duration, err := getFrameRateFractionAndDuration(filename)
+	frameRateFraction, duration, err := GetFrameRateFractionAndDuration(filename)
 	if err != nil {
 		progressChan <- Failed
 		return
@@ -54,7 +62,7 @@ func distortVideo(filename, output string, progressChan chan string) {
 		now := time.Now()
 		if now.Sub(lastUpdate).Seconds() > 2 {
 			lastUpdate = now
-			progressChan <- generateProgressMessage(distortedFrames, totalFrames)
+			progressChan <- tools.GenerateProgressMessage(distortedFrames, totalFrames)
 		}
 	}
 	progressChan <- "Collecting frames..."
@@ -65,7 +73,7 @@ func distortVideo(filename, output string, progressChan chan string) {
 	return
 }
 
-func getFrameRateFractionAndDuration(filename string) (string, float64, error) {
+func GetFrameRateFractionAndDuration(filename string) (string, float64, error) {
 	output, err := exec.Command(
 		"ffprobe",
 		"-v", "error",
@@ -120,7 +128,7 @@ func poolDistortImages(frameDir string, doneChan chan int) {
 				<-sem
 				doneChan <- 1
 			}()
-			err := distortImage(fmt.Sprintf("%s/%s", frameDir, frame))
+			err := DistortImage(fmt.Sprintf("%s/%s", frameDir, frame))
 			if err != nil {
 				doneChan <- -1
 			}
