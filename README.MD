@@ -6,8 +6,8 @@ Currently resides here: [@distortionerbot](https://t.me/distortionerbot)
 
 ## Usage
 1. You'll need to install [ffmpeg](http://ffmpeg.org) and [ImageMagick](http://www.imagemagick.org/) with liquid-rescale enabled. For that you'll need to install [liblqr](https://github.com/carlobaldassi/liblqr) and glib-2.0, then [compile from source](https://imagemagick.org/script/install-source.php) (using AppImage might work too)
-1. Create a bot with [@BotFather](https://t.me/BotFather), then set up a `DISTORTIONER_BOT_TOKEN` environment variable.
-1. After that grab `distortioner` from releases or compile using `go build` command.
+2. Create a bot with [@BotFather](https://t.me/BotFather), then set up a `DISTORTIONER_BOT_TOKEN` environment variable.
+3. After that grab `distortioner` from releases or compile using `go build` command.
 
 ## Docker support
 Fill out your bot token in distortioner.env (and your admin ID if you wish to monitor stats), then launch as usual:

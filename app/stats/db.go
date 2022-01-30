@@ -3,6 +3,7 @@ package stats
 import (
 	"database/sql"
 	"log"
+	"os"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -52,6 +53,10 @@ const statQuery = `
 `
 
 func InitDB() *DistortionerDB {
+	err := os.Mkdir("data", os.ModePerm)
+	if err != nil && !os.IsExist(err) {
+		log.Fatal("Failed to create data directory for stat DB", err)
+	}
 	db, err := sql.Open("sqlite3", "file:data/distortioner.sqlite?cache=shared")
 	if err != nil {
 		log.Fatal(err)
