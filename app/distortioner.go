@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -169,9 +171,53 @@ func handleReplyDistortion(b *tb.Bot, m *tb.Message, rl *tools.RateLimiter) {
 	}
 }
 
+func handleStatRequest(b *tb.Bot, m *tb.Message, db *stats.DistortionerDB, period stats.Period, adminID int64) {
+	if m.Sender.ID != adminID {
+		return
+	}
+	stat, err := db.GetStat(period)
+	if err != nil {
+		log.Println(err)
+		b.Send(m.Chat, err.Error())
+		return
+	}
+	header := "Stats for the past %s"
+	switch period {
+	case stats.Daily:
+		header = fmt.Sprintf(header, "24 hours")
+	case stats.Weekly:
+		header = fmt.Sprintf(header, "week")
+	case stats.Monthly:
+		header = fmt.Sprintf(header, "month")
+	default:
+		log.Printf("stats asked for a weird period: %s\n", period)
+		return
+	}
+	message := fmt.Sprintf("*%s*\nDistorted %d messages in %d distinct chats, %d of which were group chats\n",
+		header, stat.Interactions, stat.Chats, stat.Groups)
+	details := fmt.Sprintf(`
+*Breakdown by type*
+_Stickers_: %d
+_GIFs_: %d
+_Videos_: %d
+_Video notes_: %d
+_Voice messages_: %d
+_Photos_: %d
+_Text messages_: %d
+`,
+		stat.Sticker, stat.Animation, stat.Video, stat.VideoNote, stat.Voice, stat.Photo, stat.Text)
+	b.Send(m.Chat, message+details, tb.ModeMarkdown)
+}
+
 func main() {
 	db := stats.InitDB()
 	defer db.Close()
+
+	adminID, err := strconv.ParseInt(os.Getenv("DISTORTIONER_ADMIN_ID"), 10, 64)
+	if err != nil {
+		adminID = -1
+		log.Println("DISTORTIONER_ADMIN_ID variable is not set")
+	}
 
 	b, err := tb.NewBot(tb.Settings{
 		Token: os.Getenv("DISTORTIONER_BOT_TOKEN"),
@@ -182,10 +228,13 @@ func main() {
 		}
 		m := update.Message
 		isCommand := len(m.Entities) > 0 && m.Entities[0].Type == tb.EntityCommand
-		if m.FromGroup() && !(isCommand && strings.HasSuffix(update.Message.Text, b.Me.Username)) {
+		text := update.Message.Text
+		if m.FromGroup() && !(isCommand && strings.HasSuffix(text, b.Me.Username)) {
 			return false
 		}
-		go db.SaveStat(update.Message, isCommand)
+		if text != "/daily" && text != "/weekly" && text != "/monthly" {
+			go db.SaveStat(update.Message, isCommand)
+		}
 		return true
 	})
 
@@ -202,6 +251,18 @@ func main() {
 
 	b.Handle("/distort", func(m *tb.Message) {
 		handleReplyDistortion(b, m, rl)
+	})
+
+	b.Handle("/daily", func(m *tb.Message) {
+		handleStatRequest(b, m, db, stats.Daily, adminID)
+	})
+
+	b.Handle("/weekly", func(m *tb.Message) {
+		handleStatRequest(b, m, db, stats.Weekly, adminID)
+	})
+
+	b.Handle("/monthly", func(m *tb.Message) {
+		handleStatRequest(b, m, db, stats.Monthly, adminID)
 	})
 
 	b.Handle(tb.OnAnimation, func(m *tb.Message) {

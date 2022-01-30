@@ -10,7 +10,7 @@ Currently resides here: [@distortionerbot](https://t.me/distortionerbot)
 1. After that grab `distortioner` from releases or compile using `go build` command.
 
 ## Docker support
-Fill out your bot token in distortioner.env, then launch as usual:
+Fill out your bot token in distortioner.env (and your admin ID if you wish to monitor stats), then launch as usual:
 ```Bash
 sudo docker run -d --restart unless-stopped \
    --name distortioner \
@@ -37,9 +37,11 @@ loginctl enable-linger $USER
 The bot _technically_ is able __all__ messages in the group due to limitations imposed by Telegram 
 (I've tried making it work with privacy mode enabled, but this renders `/distort` command useless).
 
-However, none of it is stored or analysed in any way. The only thing I collect is user/chat IDs for the stats.
+However, none of it is stored or analysed in any way. The only thing I collect is chat IDs for the stats 
+(so if you use the bot in chat group - I store only chat group ID).
 
 In addition to that, if the bot fails to distort some piece of media, it will not get deleted as well, to help me debug such cases
+(your user ID is not tied to the file itself)
 
 ## TODO
 * Distort animated stickers

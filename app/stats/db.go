@@ -14,7 +14,44 @@ type DistortionerDB struct {
 	insert *sql.Stmt
 }
 
-func InitDB() DistortionerDB {
+type Stat struct {
+	Interactions int
+	Chats        int
+	Groups       int
+	Sticker      int
+	Animation    int
+	Video        int
+	VideoNote    int
+	Voice        int
+	Photo        int
+	Text         int
+}
+
+type Period string
+
+const (
+	Daily   Period = "-1 day"
+	Weekly  Period = "-7 days"
+	Monthly Period = "-1 month"
+)
+
+const statQuery = `
+	select
+		   count(*) as interactions,
+		   count(distinct(user_id)) as users,
+		   count(distinct (case when is_group_chat = 1 then user_id end)) as groups,
+		   count(case when type = 'sticker' then type end) as sticker,
+		   count(case when type = 'animation' then type end) as animation,
+		   count(case when type = 'video' then type end) as video,
+		   count(case when type = 'videonote' then type end) as videonote,
+		   count(case when type = 'voice' then type end) as voice,
+		   count(case when type = 'photo' then type end) as photo,
+		   count(case when type = 'text' then type end) as text
+	from stats
+	where date >= datetime('now', ?, 'localtime') and datetime('now','localtime');
+`
+
+func InitDB() *DistortionerDB {
 	db, err := sql.Open("sqlite3", "file:data/distortioner.sqlite?cache=shared")
 	if err != nil {
 		log.Fatal(err)
@@ -24,19 +61,20 @@ func InitDB() DistortionerDB {
 	}
 	db.SetMaxOpenConns(1)
 
-	sqlStmt := `
-	create table if not exists stats(id integer not null primary key, user_id integer, is_group_chat integer, date integer, type text);
-	`
-	_, err = db.Exec(sqlStmt)
+	_, err = db.Exec(`create table if not exists stats(id integer not null primary key, user_id integer, is_group_chat integer, date integer, type text);`)
 	if err != nil {
 		log.Fatal(err)
 	}
-	stmt, err := db.Prepare(`insert into stats(user_id, is_group_chat, date, type) values(?, ?, ?, ?);`)
+	_, err = db.Exec(`create index if not exists dateidx on stats(date asc);`)
 	if err != nil {
 		log.Fatal(err)
 	}
-	dist.insert = stmt
-	return dist
+	insertStat, err := db.Prepare(`insert into stats(user_id, is_group_chat, date, type) values(?, ?, ?, ?);`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	dist.insert = insertStat
+	return &dist
 }
 
 func (d *DistortionerDB) SaveStat(message *tb.Message, isCommand bool) {
@@ -67,6 +105,14 @@ func (d *DistortionerDB) SaveStat(message *tb.Message, isCommand bool) {
 	if err != nil {
 		log.Println(err)
 	}
+}
+
+func (d *DistortionerDB) GetStat(period Period) (Stat, error) {
+	row := d.db.QueryRow(statQuery, period)
+	var stat Stat
+	err := row.Scan(&stat.Interactions, &stat.Chats, &stat.Groups, &stat.Sticker, &stat.Animation, &stat.Video,
+		&stat.VideoNote, &stat.Voice, &stat.Photo, &stat.Text)
+	return stat, err
 }
 
 func (d *DistortionerDB) Close() {
