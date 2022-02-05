@@ -2,17 +2,18 @@ package stats
 
 import (
 	"database/sql"
-	"log"
 	"os"
 	"time"
 
+	tb "github.com/graynk/telebot"
 	_ "github.com/mattn/go-sqlite3"
-	tb "gopkg.in/tucnak/telebot.v2"
+	"go.uber.org/zap"
 )
 
 type DistortionerDB struct {
 	db     *sql.DB
 	insert *sql.Stmt
+	logger *zap.SugaredLogger
 }
 
 type Stat struct {
@@ -52,31 +53,32 @@ const statQuery = `
 	where date >= datetime('now', ?, 'localtime') and datetime('now','localtime');
 `
 
-func InitDB() *DistortionerDB {
+func InitDB(logger *zap.SugaredLogger) *DistortionerDB {
 	err := os.Mkdir("data", os.ModePerm)
 	if err != nil && !os.IsExist(err) {
-		log.Fatal("Failed to create data directory for stat DB", err)
+		logger.Fatal("Failed to create data directory for stat DB", err)
 	}
 	db, err := sql.Open("sqlite3", "file:data/distortioner.sqlite?cache=shared")
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 	dist := DistortionerDB{
-		db: db,
+		db:     db,
+		logger: logger,
 	}
 	db.SetMaxOpenConns(1)
 
 	_, err = db.Exec(`create table if not exists stats(id integer not null primary key, user_id integer, is_group_chat integer, date integer, type text);`)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 	_, err = db.Exec(`create index if not exists dateidx on stats(date asc);`)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 	insertStat, err := db.Prepare(`insert into stats(user_id, is_group_chat, date, type) values(?, ?, ?, ?);`)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 	dist.insert = insertStat
 	return &dist
@@ -84,7 +86,6 @@ func InitDB() *DistortionerDB {
 
 func (d *DistortionerDB) SaveStat(message *tb.Message, isCommand bool) {
 	if message == nil {
-		log.Println("nil pointer passed to SaveStat")
 		return
 	}
 	if isCommand {
@@ -108,7 +109,7 @@ func (d *DistortionerDB) SaveStat(message *tb.Message, isCommand bool) {
 	}
 	_, err := d.insert.Exec(message.Chat.ID, message.FromGroup(), time.Now(), messageType)
 	if err != nil {
-		log.Println(err)
+		d.logger.Error(err)
 	}
 }
 

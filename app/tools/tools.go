@@ -2,12 +2,11 @@ package tools
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
-	tb "gopkg.in/tucnak/telebot.v2"
+	tb "github.com/graynk/telebot"
 )
 
 const progress = "Processing frames...\n<code>[----------] %d%%</code>"
@@ -16,6 +15,20 @@ func GenerateProgressMessage(done, total int) string {
 	fraction := float64(done) / float64(total)
 	message := fmt.Sprintf(progress, int(fraction*100))
 	return strings.Replace(message, "-", "=", int(fraction*10))
+}
+
+func IsMedia(m *tb.Message) bool {
+	if m == nil {
+		return false
+	}
+	return m.Photo != nil || m.Video != nil || m.VideoNote != nil || m.Voice != nil
+}
+
+func IsNonMediaMedia(m *tb.Message) bool {
+	if m == nil {
+		return false
+	}
+	return m.Animation != nil || m.Sticker != nil
 }
 
 func JustGetTheFile(b *tb.Bot, m *tb.Message) (string, error) {
@@ -37,7 +50,6 @@ func JustGetTheFile(b *tb.Bot, m *tb.Message) (string, error) {
 	}
 	err := b.Download(&file, filename)
 	if err != nil {
-		log.Println(err)
 		b.Send(m.Chat, "Failed to download media")
 	}
 

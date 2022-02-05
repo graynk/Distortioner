@@ -1,41 +1,47 @@
 package main
 
 import (
-	"log"
 	"os"
+	"strings"
 	"time"
 
-	tb "gopkg.in/tucnak/telebot.v2"
+	tb "github.com/graynk/telebot"
 
 	"github.com/graynk/distortioner/distorters"
 	"github.com/graynk/distortioner/tools"
 )
 
-func HandleAnimationCommon(b *tb.Bot, m *tb.Message) (*tb.Message, string, string, error) {
-	progressMessage, err := SendMessageWithRepeater(b, m.Chat, "Downloading...")
+const (
+	NotEnoughRights = "The bot does not have enough rights to send media to your chat"
+	NotSupported    = "Not supported yet, sorry"
+)
+
+func (d DistorterBot) HandleAnimationCommon(m *tb.Message) (*tb.Message, string, string, error) {
+	progressMessage, err := d.SendMessageWithRepeater(m.Chat, "Downloading...")
 	if err != nil {
-		log.Println(err)
+		d.logger.Error(err)
 		return nil, "", "", err
 	}
-	filename, err := tools.JustGetTheFile(b, m)
+	filename, err := tools.JustGetTheFile(d.b, m)
 	if err != nil {
+		d.logger.Error(err)
 		return nil, "", "", err
 	}
 	animationOutput := filename + ".mp4"
 	progressChan := make(chan string, 3)
 	go distorters.DistortVideo(filename, animationOutput, progressChan)
 	for report := range progressChan {
-		progressMessage, _ = b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
+		progressMessage, _ = d.b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
 	}
 	_, err = os.Stat(animationOutput)
 	return progressMessage, filename, animationOutput, err
 }
 
-func HandleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
-	progressMessage, filename, animationOutput, err := HandleAnimationCommon(b, m)
+func (d DistorterBot) HandleVideoCommon(m *tb.Message) (string, error) {
+	progressMessage, filename, animationOutput, err := d.HandleAnimationCommon(m)
 	if err != nil {
 		if progressMessage != nil && progressMessage.Text != distorters.TooLong {
-			DoneMessageWithRepeater(b, progressMessage, true)
+			d.DoneMessageWithRepeater(progressMessage, true)
 		}
 		return "", err
 	}
@@ -49,50 +55,51 @@ func HandleVideoCommon(b *tb.Bot, m *tb.Message) (string, error) {
 		defer os.Remove(soundOutput)
 	}
 	output := filename + "Final.mp4"
-	b.Edit(progressMessage, "Muxing frames with sound back together...")
+	d.b.Edit(progressMessage, "Muxing frames with sound back together...")
 	err = distorters.CollectAnimationAndSound(animationOutput, soundOutput, output)
-	DoneMessageWithRepeater(b, progressMessage, err != nil)
+	d.DoneMessageWithRepeater(progressMessage, err != nil)
 	return output, err
 }
 
-func dealWithStatusMessage(b *tb.Bot, m *tb.Message, failed bool) error {
+func (d DistorterBot) dealWithStatusMessage(m *tb.Message, failed bool) error {
 	var err error
 	if failed {
-		_, err = b.Edit(m, distorters.Failed)
+		_, err = d.b.Edit(m, distorters.Failed)
 	} else {
-		err = b.Delete(m)
+		err = d.b.Delete(m)
 	}
 	return err
 }
 
-func DoneMessageWithRepeater(b *tb.Bot, m *tb.Message, failed bool) {
-	err := dealWithStatusMessage(b, m, failed)
+func (d DistorterBot) DoneMessageWithRepeater(m *tb.Message, failed bool) {
+	err := d.dealWithStatusMessage(m, failed)
 	for err != nil {
 		var timeout int
 		timeout, err = tools.ExtractPossibleTimeout(err)
 		if err != nil {
 			return
 		}
-		log.Printf("sleeping for %d before finishing up\n", timeout)
 		time.Sleep(time.Duration(timeout) * time.Second)
-		err = dealWithStatusMessage(b, m, failed)
+		err = d.dealWithStatusMessage(m, failed)
 	}
 }
 
-func SendMessageWithRepeater(b *tb.Bot, chat *tb.Chat, toSend interface{}) (*tb.Message, error) {
-	m, err := b.Send(chat, toSend)
+func (d DistorterBot) SendMessageWithRepeater(chat *tb.Chat, toSend interface{}) (*tb.Message, error) {
+	m, err := d.b.Send(chat, toSend)
 	for err != nil {
+		if strings.Contains(err.Error(), "not enough rights to send") {
+			d.b.Send(chat, NotEnoughRights)
+		}
 		var timeout int
 		timeout, err = tools.ExtractPossibleTimeout(err)
 		if err != nil {
-			log.Println(err)
+			d.logger.Error(err)
 			return nil, err
 		}
-		log.Printf("sleeping for %d\n", timeout)
 		time.Sleep(time.Duration(timeout) * time.Second)
-		m, err = b.Send(chat, toSend)
+		m, err = d.b.Send(chat, toSend)
 		if err != nil {
-			log.Println(err)
+			d.logger.Error(err)
 		}
 	}
 
