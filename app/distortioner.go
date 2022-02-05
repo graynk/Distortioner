@@ -35,9 +35,11 @@ func (d DistorterBot) handleAnimationDistortion(m *tb.Message) {
 	}
 
 	progressMessage, filename, output, err := d.HandleAnimationCommon(m)
-	failed := err != nil && progressMessage.Text != distorters.TooLong
-	d.DoneMessageWithRepeater(progressMessage, failed)
+	failed := err != nil
 	if failed {
+		if progressMessage.Text != distorters.TooLong {
+			d.DoneMessageWithRepeater(progressMessage, failed)
+		}
 		return
 	}
 	defer os.Remove(filename)
@@ -48,6 +50,7 @@ func (d DistorterBot) handleAnimationDistortion(m *tb.Message) {
 		distorted.Caption = distorters.DistortText(m.Caption)
 	}
 	d.SendMessageWithRepeater(m.Chat, distorted)
+	d.DoneMessageWithRepeater(progressMessage, failed)
 }
 
 func (d DistorterBot) handlePhotoDistortion(m *tb.Message) {
@@ -106,14 +109,19 @@ func (d DistorterBot) handleVideoDistortion(m *tb.Message) {
 		d.b.Send(m.Chat, tools.FormatRateLimitResponse(diff))
 		return
 	}
-	output, err := d.HandleVideoCommon(m)
-	if err != nil {
+	output, progressMessage, err := d.HandleVideoCommon(m)
+	failed := err != nil
+	if failed {
+		if progressMessage.Text != distorters.TooLong {
+			d.DoneMessageWithRepeater(progressMessage, failed)
+		}
 		return
 	}
 	defer os.Remove(output)
 
 	distorted := &tb.Video{File: tb.FromDisk(output)}
 	d.SendMessageWithRepeater(m.Chat, distorted)
+	d.DoneMessageWithRepeater(progressMessage, failed)
 }
 
 func (d DistorterBot) handleVideoNoteDistortion(m *tb.Message) {
@@ -125,13 +133,18 @@ func (d DistorterBot) handleVideoNoteDistortion(m *tb.Message) {
 		d.b.Send(m.Chat, tools.FormatRateLimitResponse(diff))
 		return
 	}
-	output, err := d.HandleVideoCommon(m)
-	if err != nil {
+	output, progressMessage, err := d.HandleVideoCommon(m)
+	failed := err != nil
+	if failed {
+		if progressMessage.Text != distorters.TooLong {
+			d.DoneMessageWithRepeater(progressMessage, failed)
+		}
 		return
 	}
 	defer os.Remove(output)
 	distorted := &tb.VideoNote{File: tb.FromDisk(output)}
 	d.SendMessageWithRepeater(m.Chat, distorted)
+	d.DoneMessageWithRepeater(progressMessage, failed)
 }
 
 func (d DistorterBot) handleVoiceDistortion(m *tb.Message) {

@@ -31,21 +31,27 @@ func (d DistorterBot) HandleAnimationCommon(m *tb.Message) (*tb.Message, string,
 	progressChan := make(chan string, 3)
 	go distorters.DistortVideo(filename, animationOutput, progressChan)
 	for report := range progressChan {
-		progressMessage, _ = d.b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
+		if progressMessage == nil {
+			continue
+		}
+		msg, err := d.b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
+		if err == nil && msg != nil {
+			progressMessage = msg
+		}
 	}
 	_, err = os.Stat(animationOutput)
 	return progressMessage, filename, animationOutput, err
 }
 
-func (d DistorterBot) HandleVideoCommon(m *tb.Message) (string, error) {
+func (d DistorterBot) HandleVideoCommon(m *tb.Message) (string, *tb.Message, error) {
 	progressMessage, filename, animationOutput, err := d.HandleAnimationCommon(m)
+	defer os.Remove(filename)
 	if err != nil {
 		if progressMessage != nil && progressMessage.Text != distorters.TooLong {
 			d.DoneMessageWithRepeater(progressMessage, true)
 		}
-		return "", err
+		return "", progressMessage, err
 	}
-	defer os.Remove(filename)
 	defer os.Remove(animationOutput)
 	soundOutput := filename + ".ogg"
 	err = distorters.DistortSound(filename, soundOutput)
@@ -55,10 +61,11 @@ func (d DistorterBot) HandleVideoCommon(m *tb.Message) (string, error) {
 		defer os.Remove(soundOutput)
 	}
 	output := filename + "Final.mp4"
-	d.b.Edit(progressMessage, "Muxing frames with sound back together...")
+	if progressMessage != nil {
+		d.b.Edit(progressMessage, "Muxing frames with sound back together...")
+	}
 	err = distorters.CollectAnimationAndSound(animationOutput, soundOutput, output)
-	d.DoneMessageWithRepeater(progressMessage, err != nil)
-	return output, err
+	return output, progressMessage, err
 }
 
 func (d DistorterBot) dealWithStatusMessage(m *tb.Message, failed bool) error {
