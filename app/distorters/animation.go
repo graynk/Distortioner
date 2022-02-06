@@ -125,7 +125,7 @@ func collectFramesToVideoSticker(numberedFileName, frameRateFraction, filename s
 		"-i", numberedFileName,
 		"-f", "webm",
 		"-c:v", "libvpx-vp9",
-		"-b:v", "555k",
+		"-b:v", "85k", // ebuchiy shakal mode activated
 		"-an",
 		"-pix_fmt", "yuva420p",
 		filename)

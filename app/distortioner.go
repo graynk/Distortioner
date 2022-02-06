@@ -98,8 +98,6 @@ func (d DistorterBot) handleVideoStickerDistortion(m *tb.Message) {
 		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
 		return
 	}
-	defer os.Remove(filename)
-	defer os.Remove(output)
 	webm := tb.FromDisk(output)
 	uniquePart, _ := uuid.New().MarshalBinary()
 	uniquePartStr := base32.NewEncoding(UuidAlphabet).WithPadding(base32.NoPadding).EncodeToString(uniquePart)
@@ -131,6 +129,8 @@ func (d DistorterBot) handleVideoStickerDistortion(m *tb.Message) {
 	}
 	sticker := set.Stickers[0]
 	d.SendMessageWithRepeater(m.Chat, &sticker)
+	defer os.Remove(filename)
+	defer os.Remove(output)
 	d.b.DeleteStickerFromSet(sticker.FileID)
 }
 
