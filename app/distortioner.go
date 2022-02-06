@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/base32"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	tb "github.com/graynk/telebot"
 	"go.uber.org/zap"
 
@@ -20,9 +22,10 @@ const (
 )
 
 type DistorterBot struct {
-	b      *tb.Bot
-	rl     *tools.RateLimiter
-	logger *zap.SugaredLogger
+	adminID int64
+	b       *tb.Bot
+	rl      *tools.RateLimiter
+	logger  *zap.SugaredLogger
 }
 
 func (d DistorterBot) handleAnimationDistortion(m *tb.Message) {
@@ -73,15 +76,7 @@ func (d DistorterBot) handlePhotoDistortion(m *tb.Message) {
 	d.SendMessageWithRepeater(m.Chat, distorted)
 }
 
-func (d DistorterBot) handleStickerDistortion(m *tb.Message) {
-	if m.Sticker.Animated {
-		// TODO: there might be a nice way to distort them too, just parse the data and move stuff around, I guess
-		d.SendMessageWithRepeater(m.Chat, NotSupported)
-		return
-	} else if m.Sticker.Video {
-		d.SendMessageWithRepeater(m.Chat, NotSupported)
-		return
-	}
+func (d DistorterBot) handleRegularStickerDistortion(m *tb.Message) {
 	filename, err := tools.JustGetTheFile(d.b, m)
 	if err != nil {
 		d.logger.Error(err)
@@ -95,6 +90,59 @@ func (d DistorterBot) handleStickerDistortion(m *tb.Message) {
 	}
 	distorted := &tb.Sticker{File: tb.FromDisk(filename)}
 	d.SendMessageWithRepeater(m.Chat, distorted)
+}
+
+func (d DistorterBot) handleVideoStickerDistortion(m *tb.Message) {
+	filename, output, err := d.HandleVideoSticker(m)
+	if err != nil {
+		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
+		return
+	}
+	defer os.Remove(filename)
+	defer os.Remove(output)
+	webm := tb.FromDisk(output)
+	uniquePart, _ := uuid.New().MarshalBinary()
+	uniquePartStr := base32.NewEncoding(UuidAlphabet).WithPadding(base32.NoPadding).EncodeToString(uniquePart)
+	botUsername := d.b.Me.Username
+	name := fmt.Sprintf("%s_by_%s", uniquePartStr, botUsername)
+	set := &tb.StickerSet{
+		Name:   name,
+		Title:  "bot api sucks",
+		WEBM:   &webm,
+		Emojis: "🍆",
+	}
+	// an ugly workaround, can't find a way to avoid it
+	err = d.b.CreateNewStickerSet(&tb.User{ID: d.adminID}, *set)
+	if err != nil {
+		d.logger.Error(err, zap.String("name", name))
+		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
+		return
+	}
+	set, err = d.b.GetStickerSet(name)
+	if err != nil {
+		d.logger.Error(err)
+		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
+		return
+	}
+	if len(set.Stickers) == 0 {
+		d.logger.Error("empty stickers field", zap.String("stickerSet", set.Name))
+		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
+		return
+	}
+	sticker := set.Stickers[0]
+	d.SendMessageWithRepeater(m.Chat, &sticker)
+	d.b.DeleteStickerFromSet(sticker.FileID)
+}
+
+func (d DistorterBot) handleStickerDistortion(m *tb.Message) {
+	switch {
+	case m.Sticker.Animated:
+		d.SendMessageWithRepeater(m.Chat, NotSupported)
+	case m.Sticker.Video:
+		d.handleVideoStickerDistortion(m)
+	default:
+		d.handleRegularStickerDistortion(m)
+	}
 }
 
 func (d DistorterBot) handleTextDistortion(m *tb.Message) {
@@ -197,8 +245,8 @@ func (d DistorterBot) handleReplyDistortion(m *tb.Message) {
 	}
 }
 
-func (d DistorterBot) handleStatRequest(m *tb.Message, db *stats.DistortionerDB, period stats.Period, adminID int64) {
-	if m.Sender.ID != adminID {
+func (d DistorterBot) handleStatRequest(m *tb.Message, db *stats.DistortionerDB, period stats.Period) {
+	if m.Sender.ID != d.adminID {
 		return
 	}
 	stat, err := db.GetStat(period)
@@ -245,16 +293,17 @@ func main() {
 	adminID, err := strconv.ParseInt(os.Getenv("DISTORTIONER_ADMIN_ID"), 10, 64)
 	if err != nil {
 		adminID = -1
-		logger.Warn("DISTORTIONER_ADMIN_ID variable is not set")
+		logger.Fatal("DISTORTIONER_ADMIN_ID variable is not set")
 	}
 
 	b, err := tb.NewBot(tb.Settings{
 		Token: os.Getenv("DISTORTIONER_BOT_TOKEN"),
 	})
 	d := DistorterBot{
-		b:      b,
-		rl:     tools.NewRateLimiter(),
-		logger: logger,
+		b:       b,
+		adminID: adminID,
+		rl:      tools.NewRateLimiter(),
+		logger:  logger,
 	}
 	b.Poller = tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {
 		if update.Message == nil {
@@ -303,15 +352,15 @@ func main() {
 	})
 
 	b.Handle("/daily", func(m *tb.Message) {
-		d.handleStatRequest(m, db, stats.Daily, adminID)
+		d.handleStatRequest(m, db, stats.Daily)
 	})
 
 	b.Handle("/weekly", func(m *tb.Message) {
-		d.handleStatRequest(m, db, stats.Weekly, adminID)
+		d.handleStatRequest(m, db, stats.Weekly)
 	})
 
 	b.Handle("/monthly", func(m *tb.Message) {
-		d.handleStatRequest(m, db, stats.Monthly, adminID)
+		d.handleStatRequest(m, db, stats.Monthly)
 	})
 
 	b.Handle(tb.OnAnimation, func(m *tb.Message) {

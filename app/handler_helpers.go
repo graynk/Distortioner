@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	tb "github.com/graynk/telebot"
@@ -14,6 +15,7 @@ import (
 const (
 	NotEnoughRights = "The bot does not have enough rights to send media to your chat"
 	NotSupported    = "Not supported yet, sorry"
+	UuidAlphabet    = "abcdefghijklmnopqrstuvwxyzabcdef"
 )
 
 func (d DistorterBot) HandleAnimationCommon(m *tb.Message) (*tb.Message, string, string, error) {
@@ -66,6 +68,21 @@ func (d DistorterBot) HandleVideoCommon(m *tb.Message) (string, *tb.Message, err
 	}
 	err = distorters.CollectAnimationAndSound(animationOutput, soundOutput, output)
 	return output, progressMessage, err
+}
+
+func (d DistorterBot) HandleVideoSticker(m *tb.Message) (string, string, error) {
+	filename, err := tools.JustGetTheFile(d.b, m)
+	if err != nil {
+		d.logger.Error(err)
+		return "", "", err
+	}
+	animationOutput := filename + ".webm"
+	group := sync.WaitGroup{}
+	group.Add(1)
+	go distorters.DistortVideoSticker(filename, animationOutput, &group)
+	group.Wait()
+	_, err = os.Stat(animationOutput)
+	return filename, animationOutput, err
 }
 
 func (d DistorterBot) dealWithStatusMessage(m *tb.Message, failed bool) error {

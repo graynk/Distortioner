@@ -79,7 +79,8 @@ func GetFrameRateFractionAndDuration(filename string) (string, float64, error) {
 		"-v", "error",
 		"-select_streams", "v",
 		"-of", "default=noprint_wrappers=1:nokey=1",
-		"-show_entries", "stream=avg_frame_rate, duration",
+		"-show_entries", "stream=avg_frame_rate",
+		"-show_entries", "format=duration",
 		filename).Output()
 	if err != nil {
 		err = errors.WithStack(err)
@@ -101,6 +102,14 @@ func extractFramesFromVideo(frameRateFraction, filename, numberedFileName string
 		numberedFileName)
 }
 
+func extractFramesFromVideoSticker(frameRateFraction, filename, numberedFileName string) error {
+	return runFfmpeg("-vcodec", "libvpx-vp9",
+		"-i", filename,
+		"-r", frameRateFraction,
+		"-pix_fmt", "rgba",
+		numberedFileName)
+}
+
 func collectFramesToVideo(numberedFileName, frameRateFraction, filename string) error {
 	return runFfmpeg("-r", frameRateFraction,
 		"-i", numberedFileName,
@@ -108,6 +117,17 @@ func collectFramesToVideo(numberedFileName, frameRateFraction, filename string) 
 		"-c:v", "libx264",
 		"-an",
 		"-pix_fmt", "yuv420p",
+		filename)
+}
+
+func collectFramesToVideoSticker(numberedFileName, frameRateFraction, filename string) error {
+	return runFfmpeg("-r", frameRateFraction,
+		"-i", numberedFileName,
+		"-f", "webm",
+		"-c:v", "libvpx-vp9",
+		"-b:v", "555k",
+		"-an",
+		"-pix_fmt", "yuva420p",
 		filename)
 }
 
