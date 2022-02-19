@@ -5,9 +5,9 @@ import (
 	"os"
 	"time"
 
-	tb "github.com/graynk/telebot"
 	_ "github.com/mattn/go-sqlite3"
 	"go.uber.org/zap"
+	tb "gopkg.in/telebot.v3"
 )
 
 type DistortionerDB struct {

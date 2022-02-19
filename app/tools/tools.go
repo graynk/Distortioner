@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	tb "github.com/graynk/telebot"
+	tb "gopkg.in/telebot.v3"
 )
 
 const progress = "Processing frames...\n<code>[----------] %d%%</code>"

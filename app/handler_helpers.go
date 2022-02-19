@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	tb "github.com/graynk/telebot"
+	tb "gopkg.in/telebot.v3"
 
 	"github.com/graynk/distortioner/distorters"
 	"github.com/graynk/distortioner/tools"
@@ -18,13 +18,15 @@ const (
 	UuidAlphabet    = "abcdefghijklmnopqrstuvwxyzabcdef"
 )
 
-func (d DistorterBot) HandleAnimationCommon(m *tb.Message) (*tb.Message, string, string, error) {
-	progressMessage, err := d.SendMessageWithRepeater(m.Chat, "Downloading...")
+func (d DistorterBot) HandleAnimationCommon(c tb.Context) (*tb.Message, string, string, error) {
+	m := c.Message()
+	b := c.Bot()
+	progressMessage, err := d.SendMessageWithRepeater(c, "Downloading...")
 	if err != nil {
 		d.logger.Error(err)
 		return nil, "", "", err
 	}
-	filename, err := tools.JustGetTheFile(d.b, m)
+	filename, err := tools.JustGetTheFile(b, m)
 	if err != nil {
 		d.logger.Error(err)
 		return nil, "", "", err
@@ -36,7 +38,7 @@ func (d DistorterBot) HandleAnimationCommon(m *tb.Message) (*tb.Message, string,
 		if progressMessage == nil {
 			continue
 		}
-		msg, err := d.b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
+		msg, err := b.Edit(progressMessage, report, &tb.SendOptions{ParseMode: tb.ModeHTML})
 		if err == nil && msg != nil {
 			progressMessage = msg
 		}
@@ -45,12 +47,12 @@ func (d DistorterBot) HandleAnimationCommon(m *tb.Message) (*tb.Message, string,
 	return progressMessage, filename, animationOutput, err
 }
 
-func (d DistorterBot) HandleVideoCommon(m *tb.Message) (string, *tb.Message, error) {
-	progressMessage, filename, animationOutput, err := d.HandleAnimationCommon(m)
+func (d DistorterBot) HandleVideoCommon(c tb.Context) (string, *tb.Message, error) {
+	progressMessage, filename, animationOutput, err := d.HandleAnimationCommon(c)
 	defer os.Remove(filename)
 	if err != nil {
 		if progressMessage != nil && progressMessage.Text != distorters.TooLong {
-			d.DoneMessageWithRepeater(progressMessage, true)
+			d.DoneMessageWithRepeater(c.Bot(), progressMessage, true)
 		}
 		return "", progressMessage, err
 	}
@@ -64,14 +66,15 @@ func (d DistorterBot) HandleVideoCommon(m *tb.Message) (string, *tb.Message, err
 	}
 	output := filename + "Final.mp4"
 	if progressMessage != nil {
-		d.b.Edit(progressMessage, "Muxing frames with sound back together...")
+		// intentionally not updating progressMessage variable
+		c.Edit(progressMessage, "Muxing frames with sound back together...")
 	}
 	err = distorters.CollectAnimationAndSound(animationOutput, soundOutput, output)
 	return output, progressMessage, err
 }
 
-func (d DistorterBot) HandleVideoSticker(m *tb.Message) (string, string, error) {
-	filename, err := tools.JustGetTheFile(d.b, m)
+func (d DistorterBot) HandleVideoSticker(c tb.Context) (string, string, error) {
+	filename, err := tools.JustGetTheFile(c.Bot(), c.Message())
 	if err != nil {
 		d.logger.Error(err)
 		return "", "", err
@@ -85,18 +88,18 @@ func (d DistorterBot) HandleVideoSticker(m *tb.Message) (string, string, error) 
 	return filename, animationOutput, err
 }
 
-func (d DistorterBot) dealWithStatusMessage(m *tb.Message, failed bool) error {
+func (d DistorterBot) dealWithStatusMessage(b *tb.Bot, m *tb.Message, failed bool) error {
 	var err error
 	if failed {
-		_, err = d.b.Edit(m, distorters.Failed)
+		_, err = b.Edit(m, distorters.Failed)
 	} else {
-		err = d.b.Delete(m)
+		err = b.Delete(m)
 	}
 	return err
 }
 
-func (d DistorterBot) DoneMessageWithRepeater(m *tb.Message, failed bool) {
-	err := d.dealWithStatusMessage(m, failed)
+func (d DistorterBot) DoneMessageWithRepeater(b *tb.Bot, m *tb.Message, failed bool) {
+	err := d.dealWithStatusMessage(b, m, failed)
 	for err != nil {
 		var timeout int
 		timeout, err = tools.ExtractPossibleTimeout(err)
@@ -104,15 +107,17 @@ func (d DistorterBot) DoneMessageWithRepeater(m *tb.Message, failed bool) {
 			return
 		}
 		time.Sleep(time.Duration(timeout) * time.Second)
-		err = d.dealWithStatusMessage(m, failed)
+		err = d.dealWithStatusMessage(b, m, failed)
 	}
 }
 
-func (d DistorterBot) SendMessageWithRepeater(chat *tb.Chat, toSend interface{}) (*tb.Message, error) {
-	m, err := d.b.Send(chat, toSend)
+func (d DistorterBot) SendMessageWithRepeater(c tb.Context, toSend interface{}) (*tb.Message, error) {
+	b := c.Bot()
+	chat := c.Chat()
+	m, err := b.Send(chat, toSend)
 	for err != nil {
 		if strings.Contains(err.Error(), "not enough rights to send") {
-			d.b.Send(chat, NotEnoughRights)
+			b.Send(chat, NotEnoughRights)
 		}
 		var timeout int
 		timeout, err = tools.ExtractPossibleTimeout(err)
@@ -121,7 +126,7 @@ func (d DistorterBot) SendMessageWithRepeater(chat *tb.Chat, toSend interface{})
 			return nil, err
 		}
 		time.Sleep(time.Duration(timeout) * time.Second)
-		m, err = d.b.Send(chat, toSend)
+		m, err = b.Send(chat, toSend)
 		if err != nil {
 			d.logger.Error(err)
 		}

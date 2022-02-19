@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	tb "github.com/graynk/telebot"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	tb "gopkg.in/telebot.v3"
 
 	"github.com/graynk/distortioner/distorters"
 	"github.com/graynk/distortioner/stats"
@@ -23,27 +24,26 @@ const (
 
 type DistorterBot struct {
 	adminID int64
-	b       *tb.Bot
 	rl      *tools.RateLimiter
 	logger  *zap.SugaredLogger
 }
 
-func (d DistorterBot) handleAnimationDistortion(m *tb.Message) {
+func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
+	m := c.Message()
+	b := c.Bot()
 	if m.Animation.FileSize > MaxSizeMb {
-		d.b.Send(m.Chat, distorters.TooBig)
-		return
+		return c.Send(distorters.TooBig)
 	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
-		d.b.Send(m.Chat, tools.FormatRateLimitResponse(diff))
-		return
+		return c.Send(tools.FormatRateLimitResponse(diff))
 	}
 
-	progressMessage, filename, output, err := d.HandleAnimationCommon(m)
+	progressMessage, filename, output, err := d.HandleAnimationCommon(c)
 	failed := err != nil
 	if failed {
 		if progressMessage.Text != distorters.TooLong {
-			d.DoneMessageWithRepeater(progressMessage, failed)
+			d.DoneMessageWithRepeater(b, progressMessage, failed)
 		}
-		return
+		return err
 	}
 	defer os.Remove(filename)
 	defer os.Remove(output)
@@ -52,208 +52,229 @@ func (d DistorterBot) handleAnimationDistortion(m *tb.Message) {
 	if m.Caption != "" {
 		distorted.Caption = distorters.DistortText(m.Caption)
 	}
-	d.SendMessageWithRepeater(m.Chat, distorted)
-	d.DoneMessageWithRepeater(progressMessage, failed)
+	_, err = d.SendMessageWithRepeater(c, distorted)
+	d.DoneMessageWithRepeater(b, progressMessage, failed)
+	return err
 }
 
-func (d DistorterBot) handlePhotoDistortion(m *tb.Message) {
-	filename, err := tools.JustGetTheFile(d.b, m)
+func (d DistorterBot) handlePhotoDistortion(c tb.Context) error {
+	m := c.Message()
+	filename, err := tools.JustGetTheFile(c.Bot(), m)
 	if err != nil {
 		d.logger.Error(err)
-		return
+		return err
 	}
 	defer os.Remove(filename)
 	err = distorters.DistortImage(filename)
 	// sure would be nice to have generics here
 	if err != nil {
-		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
-		return
+		d.SendMessageWithRepeater(c, distorters.Failed)
+		return err
 	}
 	distorted := &tb.Photo{File: tb.FromDisk(filename)}
 	if m.Caption != "" {
 		distorted.Caption = distorters.DistortText(m.Caption)
 	}
-	d.SendMessageWithRepeater(m.Chat, distorted)
+	_, err = d.SendMessageWithRepeater(c, distorted)
+	return err
 }
 
-func (d DistorterBot) handleRegularStickerDistortion(m *tb.Message) {
-	filename, err := tools.JustGetTheFile(d.b, m)
+func (d DistorterBot) handleRegularStickerDistortion(c tb.Context) error {
+	m := c.Message()
+	filename, err := tools.JustGetTheFile(c.Bot(), m)
 	if err != nil {
 		d.logger.Error(err)
-		return
+		return err
 	}
 	defer os.Remove(filename)
 	err = distorters.DistortImage(filename)
 	if err != nil {
-		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
-		return
+		d.SendMessageWithRepeater(c, distorters.Failed)
+		return err
 	}
 	distorted := &tb.Sticker{File: tb.FromDisk(filename)}
-	d.SendMessageWithRepeater(m.Chat, distorted)
+	_, err = d.SendMessageWithRepeater(c, distorted)
+	return err
 }
 
-func (d DistorterBot) handleVideoStickerDistortion(m *tb.Message) {
-	filename, output, err := d.HandleVideoSticker(m)
+func (d DistorterBot) handleVideoStickerDistortion(c tb.Context) error {
+	filename, output, err := d.HandleVideoSticker(c)
 	if err != nil {
-		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
-		return
+		d.SendMessageWithRepeater(c, distorters.Failed)
+		return err
 	}
 	webm := tb.FromDisk(output)
 	uniquePart, _ := uuid.New().MarshalBinary()
 	uniquePartStr := base32.NewEncoding(UuidAlphabet).WithPadding(base32.NoPadding).EncodeToString(uniquePart)
-	botUsername := d.b.Me.Username
+
+	b := c.Bot()
+	botUsername := b.Me.Username
 	name := fmt.Sprintf("%s_by_%s", uniquePartStr, botUsername)
 	set := &tb.StickerSet{
 		Name:   name,
 		Title:  "bot api sucks",
-		WEBM:   &webm,
+		WebM:   &webm,
 		Emojis: "🍆",
 	}
 	// an ugly workaround, can't find a way to avoid it
-	err = d.b.CreateNewStickerSet(&tb.User{ID: d.adminID}, *set)
+	err = b.CreateStickerSet(&tb.User{ID: d.adminID}, *set)
 	if err != nil {
 		d.logger.Error(err, zap.String("name", name))
-		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
-		return
+		d.SendMessageWithRepeater(c, distorters.Failed)
+		return err
 	}
-	set, err = d.b.GetStickerSet(name)
+	set, err = b.StickerSet(name)
 	if err != nil {
 		d.logger.Error(err)
-		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
-		return
+		d.SendMessageWithRepeater(c, distorters.Failed)
+		return err
 	}
 	if len(set.Stickers) == 0 {
 		d.logger.Error("empty stickers field", zap.String("stickerSet", set.Name))
-		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
-		return
+		d.SendMessageWithRepeater(c, distorters.Failed)
+		return errors.New("empty stickers field")
 	}
 	sticker := set.Stickers[0]
-	d.SendMessageWithRepeater(m.Chat, &sticker)
+	_, err = d.SendMessageWithRepeater(c, &sticker)
 	defer os.Remove(filename)
 	defer os.Remove(output)
-	d.b.DeleteStickerFromSet(sticker.FileID)
+	b.DeleteSticker(sticker.FileID)
+	return err
 }
 
-func (d DistorterBot) handleStickerDistortion(m *tb.Message) {
+func (d DistorterBot) handleStickerDistortion(c tb.Context) error {
+	m := c.Message()
+	var err error
 	switch {
 	case m.Sticker.Animated:
-		d.SendMessageWithRepeater(m.Chat, NotSupported)
+		_, err = d.SendMessageWithRepeater(c, NotSupported)
+
 	case m.Sticker.Video:
-		d.handleVideoStickerDistortion(m)
+		err = d.handleVideoStickerDistortion(c)
 	default:
-		d.handleRegularStickerDistortion(m)
+		err = d.handleRegularStickerDistortion(c)
 	}
+	return err
 }
 
-func (d DistorterBot) handleTextDistortion(m *tb.Message) {
-	d.SendMessageWithRepeater(m.Chat, distorters.DistortText(m.Text))
+func (d DistorterBot) handleTextDistortion(c tb.Context) error {
+	_, err := d.SendMessageWithRepeater(c, distorters.DistortText(c.Text()))
+	return err
 }
 
-func (d DistorterBot) handleVideoDistortion(m *tb.Message) {
+func (d DistorterBot) handleVideoDistortion(c tb.Context) error {
+	m := c.Message()
+	b := c.Bot()
 	if m.Video.FileSize > MaxSizeMb {
-		d.b.Send(m.Chat, distorters.TooBig)
-		return
+		return c.Send(distorters.TooBig)
 	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
-		d.b.Send(m.Chat, tools.FormatRateLimitResponse(diff))
-		return
+		return c.Send(tools.FormatRateLimitResponse(diff))
 	}
-	output, progressMessage, err := d.HandleVideoCommon(m)
+	output, progressMessage, err := d.HandleVideoCommon(c)
 	failed := err != nil
 	if failed {
 		if progressMessage.Text != distorters.TooLong {
-			d.DoneMessageWithRepeater(progressMessage, failed)
+			d.DoneMessageWithRepeater(b, progressMessage, failed)
 		}
-		return
+		return err
 	}
 	defer os.Remove(output)
 
 	distorted := &tb.Video{File: tb.FromDisk(output)}
-	d.SendMessageWithRepeater(m.Chat, distorted)
-	d.DoneMessageWithRepeater(progressMessage, failed)
+	_, err = d.SendMessageWithRepeater(c, distorted)
+	d.DoneMessageWithRepeater(b, progressMessage, failed)
+	return err
 }
 
-func (d DistorterBot) handleVideoNoteDistortion(m *tb.Message) {
+func (d DistorterBot) handleVideoNoteDistortion(c tb.Context) error {
+	m := c.Message()
+	b := c.Bot()
 	// video notes are limited with 1 minute anyway
 	if m.VideoNote.FileSize > MaxSizeMb {
-		d.b.Send(m.Chat, distorters.TooBig)
-		return
+		return c.Send(m.Chat, distorters.TooBig)
 	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
-		d.b.Send(m.Chat, tools.FormatRateLimitResponse(diff))
-		return
+		return c.Send(m.Chat, tools.FormatRateLimitResponse(diff))
 	}
-	output, progressMessage, err := d.HandleVideoCommon(m)
+	output, progressMessage, err := d.HandleVideoCommon(c)
 	failed := err != nil
 	if failed {
 		if progressMessage.Text != distorters.TooLong {
-			d.DoneMessageWithRepeater(progressMessage, failed)
+			d.DoneMessageWithRepeater(b, progressMessage, failed)
 		}
-		return
+		return err
 	}
 	defer os.Remove(output)
 	distorted := &tb.VideoNote{File: tb.FromDisk(output)}
-	d.SendMessageWithRepeater(m.Chat, distorted)
-	d.DoneMessageWithRepeater(progressMessage, failed)
+	_, err = d.SendMessageWithRepeater(c, distorted)
+	d.DoneMessageWithRepeater(b, progressMessage, failed)
+	return err
 }
 
-func (d DistorterBot) handleVoiceDistortion(m *tb.Message) {
+func (d DistorterBot) handleVoiceDistortion(c tb.Context) error {
+	m := c.Message()
 	if m.Voice.FileSize > MaxSizeMb {
-		d.b.Send(m.Chat, distorters.TooBig)
-		return
+		return c.Send(m.Chat, distorters.TooBig)
 	}
-	filename, err := tools.JustGetTheFile(d.b, m)
+	filename, err := tools.JustGetTheFile(c.Bot(), m)
 	if err != nil {
 		d.logger.Error(err)
-		return
+		return err
 	}
 	defer os.Remove(filename)
 	output := filename + ".ogg"
 	err = distorters.DistortSound(filename, output)
 	if err != nil {
-		d.SendMessageWithRepeater(m.Chat, distorters.Failed)
-		return
+		d.SendMessageWithRepeater(c, distorters.Failed)
+		return err
 	}
 	defer os.Remove(output)
 
 	distorted := &tb.Voice{File: tb.FromDisk(output)}
-	d.SendMessageWithRepeater(m.Chat, distorted)
+	_, err = d.SendMessageWithRepeater(c, distorted)
+	return err
 }
 
-func (d DistorterBot) handleReplyDistortion(m *tb.Message) {
+func (d DistorterBot) handleReplyDistortion(c tb.Context) error {
+	m := c.Message()
 	if m.ReplyTo == nil {
 		msg := "You need to reply with this command to the media you want distorted."
 		if m.FromGroup() {
 			msg += "\nYou might also need to make chat history visible for new members if your group is private."
 		}
-		d.b.Send(m.Chat, msg)
-		return
+		return c.Send(msg)
 	}
 	original := m.ReplyTo
-	if original.Animation != nil {
-		d.handleAnimationDistortion(original)
-	} else if original.Sticker != nil {
-		d.handleStickerDistortion(original)
-	} else if original.Photo != nil {
-		d.handlePhotoDistortion(original)
-	} else if original.Voice != nil {
-		d.handleVoiceDistortion(original)
-	} else if original.Video != nil {
-		d.handleVideoDistortion(original)
-	} else if original.VideoNote != nil {
-		d.handleVideoNoteDistortion(original)
-	} else if original.Text != "" {
-		d.handleTextDistortion(original)
+	update := c.Update()
+	update.Message = original
+	tweakedContext := c.Bot().NewContext(update)
+	switch {
+	case original.Animation != nil:
+		return d.handleAnimationDistortion(tweakedContext)
+	case original.Sticker != nil:
+		return d.handleStickerDistortion(tweakedContext)
+	case original.Photo != nil:
+		return d.handlePhotoDistortion(tweakedContext)
+	case original.Voice != nil:
+		return d.handleVoiceDistortion(tweakedContext)
+	case original.Video != nil:
+		return d.handleVideoDistortion(tweakedContext)
+	case original.VideoNote != nil:
+		return d.handleVideoNoteDistortion(tweakedContext)
+	case original.Text != "":
+		return d.handleTextDistortion(tweakedContext)
 	}
+	return nil
 }
 
-func (d DistorterBot) handleStatRequest(m *tb.Message, db *stats.DistortionerDB, period stats.Period) {
+func (d DistorterBot) handleStatRequest(c tb.Context, db *stats.DistortionerDB, period stats.Period) error {
+	m := c.Message()
 	if m.Sender.ID != d.adminID {
-		return
+		return nil
 	}
 	stat, err := db.GetStat(period)
 	if err != nil {
 		d.logger.Error(err)
-		d.b.Send(m.Chat, err.Error())
-		return
+		return c.Send(err.Error())
 	}
 	header := "Stats for the past %s"
 	switch period {
@@ -265,7 +286,7 @@ func (d DistorterBot) handleStatRequest(m *tb.Message, db *stats.DistortionerDB,
 		header = fmt.Sprintf(header, "month")
 	default:
 		d.logger.Warnf("stats asked for a weird period", zap.String("period", string(period)))
-		return
+		return nil
 	}
 	message := fmt.Sprintf("*%s*\nDistorted %d messages in %d distinct chats, %d of which were group chats\n",
 		header, stat.Interactions, stat.Chats, stat.Groups)
@@ -280,7 +301,7 @@ _Photos_: %d
 _Text messages_: %d
 `,
 		stat.Sticker, stat.Animation, stat.Video, stat.VideoNote, stat.Voice, stat.Photo, stat.Text)
-	d.b.Send(m.Chat, message+details, tb.ModeMarkdown)
+	return c.Send(message+details, tb.ModeMarkdown)
 }
 
 func main() {
@@ -300,7 +321,6 @@ func main() {
 		Token: os.Getenv("DISTORTIONER_BOT_TOKEN"),
 	})
 	d := DistorterBot{
-		b:       b,
 		adminID: adminID,
 		rl:      tools.NewRateLimiter(),
 		logger:  logger,
@@ -316,7 +336,7 @@ func main() {
 			return false
 		}
 		if m.FromGroup() {
-			chat, err := b.ChatByID(strconv.FormatInt(m.Chat.ID, 10))
+			chat, err := b.ChatByID(m.Chat.ID)
 			if err != nil {
 				logger.Error("Failed to get chat", zap.Int64("chat_id", m.Chat.ID), zap.Error(err))
 				return false
@@ -327,7 +347,7 @@ func main() {
 					logger.Warn("can't send anything at all", zap.Int64("chat_id", m.Chat.ID))
 					return false
 				} else if (!permissions.CanSendMedia && tools.IsMedia(m.ReplyTo)) || (!permissions.CanSendOther && tools.IsNonMediaMedia(m.ReplyTo)) {
-					d.SendMessageWithRepeater(m.Chat, NotEnoughRights)
+					b.Send(m.Chat, NotEnoughRights)
 					return false
 				}
 			}
@@ -343,53 +363,30 @@ func main() {
 		return
 	}
 
-	b.Handle("/start", func(m *tb.Message) {
-		d.b.Send(m.Chat, "Send me a picture, a sticker, a voice message, a video[note] or a GIF and I'll distort it")
+	b.Handle("/start", func(c tb.Context) error {
+		return c.Send("Send me a picture, a sticker, a voice message, a video[note] or a GIF and I'll distort it")
 	})
 
-	b.Handle("/distort", func(m *tb.Message) {
-		d.handleReplyDistortion(m)
+	b.Handle("/daily", func(c tb.Context) error {
+		return d.handleStatRequest(c, db, stats.Daily)
 	})
 
-	b.Handle("/daily", func(m *tb.Message) {
-		d.handleStatRequest(m, db, stats.Daily)
+	b.Handle("/weekly", func(c tb.Context) error {
+		return d.handleStatRequest(c, db, stats.Weekly)
 	})
 
-	b.Handle("/weekly", func(m *tb.Message) {
-		d.handleStatRequest(m, db, stats.Weekly)
+	b.Handle("/monthly", func(c tb.Context) error {
+		return d.handleStatRequest(c, db, stats.Monthly)
 	})
 
-	b.Handle("/monthly", func(m *tb.Message) {
-		d.handleStatRequest(m, db, stats.Monthly)
-	})
-
-	b.Handle(tb.OnAnimation, func(m *tb.Message) {
-		d.handleAnimationDistortion(m)
-	})
-
-	b.Handle(tb.OnSticker, func(m *tb.Message) {
-		d.handleStickerDistortion(m)
-	})
-
-	b.Handle(tb.OnPhoto, func(m *tb.Message) {
-		d.handlePhotoDistortion(m)
-	})
-
-	b.Handle(tb.OnVoice, func(m *tb.Message) {
-		d.handleVoiceDistortion(m)
-	})
-
-	b.Handle(tb.OnVideo, func(m *tb.Message) {
-		d.handleVideoDistortion(m)
-	})
-
-	b.Handle(tb.OnVideoNote, func(m *tb.Message) {
-		d.handleVideoNoteDistortion(m)
-	})
-
-	b.Handle(tb.OnText, func(m *tb.Message) {
-		d.handleTextDistortion(m)
-	})
+	b.Handle("/distort", d.handleReplyDistortion)
+	b.Handle(tb.OnAnimation, d.handleAnimationDistortion)
+	b.Handle(tb.OnSticker, d.handleStickerDistortion)
+	b.Handle(tb.OnPhoto, d.handlePhotoDistortion)
+	b.Handle(tb.OnVoice, d.handleVoiceDistortion)
+	b.Handle(tb.OnVideo, d.handleVideoDistortion)
+	b.Handle(tb.OnVideoNote, d.handleVideoNoteDistortion)
+	b.Handle(tb.OnText, d.handleTextDistortion)
 
 	b.Start()
 }
