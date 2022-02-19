@@ -8,5 +8,6 @@ FROM ghcr.io/graynk/ffmpegim as release
 
 WORKDIR app
 COPY --from=build /go/src/distortioner/distortioner distortioner
+COPY app/botapi.webm botapi.webm
 
 ENTRYPOINT ["./distortioner"]
