@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	tb "gopkg.in/telebot.v3"
 
@@ -102,63 +101,7 @@ func (d DistorterBot) handleRegularStickerDistortion(c tb.Context) error {
 }
 
 func (d DistorterBot) handleVideoStickerDistortion(c tb.Context) error {
-	c.Notify(tb.ChoosingSticker)
-	filename, output, err := d.HandleVideoSticker(c)
-	if err != nil {
-		d.logger.Error(err, zap.String("set_name", c.Message().Sticker.SetName))
-		d.SendMessageWithRepeater(c, distorters.Failed)
-		return err
-	}
-	webm := tb.FromDisk(output)
-	admin := tb.User{ID: d.adminID}
-
-	b := c.Bot()
-	name := fmt.Sprintf("distorset_by_%s", b.Me.Username)
-
-	d.m.Lock()
-	defer d.m.Unlock()
-
-	set, err := b.StickerSet(name)
-	if err != nil {
-		initialWebm := tb.FromDisk("botapi.webm")
-		set = &tb.StickerSet{
-			Name:   name,
-			Title:  b.Me.FirstName,
-			WebM:   &initialWebm,
-			Emojis: "🍆",
-		}
-		// an ugly workaround, no way to avoid it
-		err = b.CreateStickerSet(&admin, *set)
-		if err != nil {
-			d.logger.Error(err, zap.String("file", initialWebm.FileLocal))
-			d.SendMessageWithRepeater(c, distorters.Failed)
-			return err
-		}
-	}
-
-	set.WebM = &webm
-	set.Emojis = "🅰️"
-	err = b.AddSticker(&admin, *set)
-	if err != nil {
-		d.logger.Error(err, zap.String("file", output))
-		return err
-	}
-	set, err = b.StickerSet(name)
-	if err != nil {
-		d.logger.Error(err, zap.String("file", output))
-		return err
-	}
-	if len(set.Stickers) < 2 {
-		d.logger.Error("empty stickers field", zap.String("stickerSet", set.Name))
-		d.SendMessageWithRepeater(c, distorters.Failed)
-		return errors.New("empty stickers field")
-	}
-	sticker := set.Stickers[1]
-	_, err = d.SendMessageWithRepeater(c, &sticker)
-	defer os.Remove(filename)
-	defer os.Remove(output)
-	b.DeleteSticker(sticker.FileID)
-	return err
+	return c.Send("You can go vote for this suggestion, for .webm stickers handling to become somewhat tolerable https://bugs.telegram.org/c/14858")
 }
 
 func (d DistorterBot) handleStickerDistortion(c tb.Context) error {
