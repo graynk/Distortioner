@@ -48,7 +48,8 @@ func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
 	defer os.Remove(filename)
 	defer os.Remove(output)
 
-	distorted := &tb.Animation{File: tb.FromDisk(output)}
+	// not sure why, but now I'm forced to specify filename manually
+	distorted := &tb.Animation{File: tb.FromDisk(output), FileName: output}
 	if m.Caption != "" {
 		distorted.Caption = distorters.DistortText(m.Caption)
 	}
