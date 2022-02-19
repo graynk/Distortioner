@@ -102,6 +102,7 @@ func (d DistorterBot) handleVideoStickerDistortion(c tb.Context) error {
 	c.Notify(tb.ChoosingSticker)
 	filename, output, err := d.HandleVideoSticker(c)
 	if err != nil {
+		d.logger.Error(err, zap.String("set_name", c.Message().Sticker.SetName))
 		d.SendMessageWithRepeater(c, distorters.Failed)
 		return err
 	}
