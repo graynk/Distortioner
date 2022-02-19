@@ -133,3 +133,12 @@ func (d DistorterBot) SendMessageWithRepeater(c tb.Context, toSend interface{}) 
 
 	return m, nil
 }
+
+func (d DistorterBot) ApplyShutdownMiddleware(h tb.HandlerFunc) tb.HandlerFunc {
+	return func(c tb.Context) error {
+		d.graceWg.Add(1)
+		err := h(c)
+		d.graceWg.Done()
+		return err
+	}
+}

@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -26,6 +28,7 @@ type DistorterBot struct {
 	rl      *tools.RateLimiter
 	logger  *zap.SugaredLogger
 	m       *sync.Mutex
+	graceWg *sync.WaitGroup
 }
 
 func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
@@ -341,6 +344,7 @@ func main() {
 		rl:      tools.NewRateLimiter(),
 		logger:  logger,
 		m:       &sync.Mutex{},
+		graceWg: &sync.WaitGroup{},
 	}
 	b.Poller = tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {
 		if update.Message == nil {
@@ -384,26 +388,37 @@ func main() {
 		return c.Send("Send me a picture, a sticker, a voice message, a video[note] or a GIF and I'll distort it")
 	})
 
-	b.Handle("/daily", func(c tb.Context) error {
+	b.Handle("/daily", d.ApplyShutdownMiddleware(func(c tb.Context) error {
 		return d.handleStatRequest(c, db, stats.Daily)
-	})
+	}))
 
-	b.Handle("/weekly", func(c tb.Context) error {
+	b.Handle("/weekly", d.ApplyShutdownMiddleware(func(c tb.Context) error {
 		return d.handleStatRequest(c, db, stats.Weekly)
-	})
+	}))
 
-	b.Handle("/monthly", func(c tb.Context) error {
+	b.Handle("/monthly", d.ApplyShutdownMiddleware(func(c tb.Context) error {
 		return d.handleStatRequest(c, db, stats.Monthly)
-	})
+	}))
 
-	b.Handle("/distort", d.handleReplyDistortion)
-	b.Handle(tb.OnAnimation, d.handleAnimationDistortion)
-	b.Handle(tb.OnSticker, d.handleStickerDistortion)
-	b.Handle(tb.OnPhoto, d.handlePhotoDistortion)
-	b.Handle(tb.OnVoice, d.handleVoiceDistortion)
-	b.Handle(tb.OnVideo, d.handleVideoDistortion)
-	b.Handle(tb.OnVideoNote, d.handleVideoNoteDistortion)
-	b.Handle(tb.OnText, d.handleTextDistortion)
+	b.Handle("/distort", d.ApplyShutdownMiddleware(d.handleReplyDistortion))
+	b.Handle(tb.OnAnimation, d.ApplyShutdownMiddleware(d.handleAnimationDistortion))
+	b.Handle(tb.OnSticker, d.ApplyShutdownMiddleware(d.handleStickerDistortion))
+	b.Handle(tb.OnPhoto, d.ApplyShutdownMiddleware(d.handlePhotoDistortion))
+	b.Handle(tb.OnVoice, d.ApplyShutdownMiddleware(d.handleVoiceDistortion))
+	b.Handle(tb.OnVideo, d.ApplyShutdownMiddleware(d.handleVideoDistortion))
+	b.Handle(tb.OnVideoNote, d.ApplyShutdownMiddleware(d.handleVideoNoteDistortion))
+	b.Handle(tb.OnText, d.ApplyShutdownMiddleware(d.handleTextDistortion))
+
+	go func() {
+		signChan := make(chan os.Signal, 1)
+		signal.Notify(signChan, os.Interrupt, syscall.SIGTERM)
+		sig := <-signChan
+
+		logger.Info("shutdown: ", zap.String("signal", sig.String()))
+
+		d.graceWg.Wait()
+		b.Stop()
+	}()
 
 	b.Start()
 }

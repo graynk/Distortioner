@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -74,14 +75,18 @@ func DistortVideo(filename, output string, progressChan chan string) {
 }
 
 func GetFrameRateFractionAndDuration(filename string) (string, float64, error) {
-	output, err := exec.Command(
+	cmd := exec.Command(
 		"ffprobe",
 		"-v", "error",
 		"-select_streams", "v",
 		"-of", "default=noprint_wrappers=1:nokey=1",
 		"-show_entries", "stream=avg_frame_rate",
 		"-show_entries", "format=duration",
-		filename).Output()
+		filename)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
+	output, err := cmd.Output()
 	if err != nil {
 		err = errors.WithStack(err)
 		log.Println(err)
