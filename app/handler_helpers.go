@@ -15,7 +15,6 @@ import (
 const (
 	NotEnoughRights = "The bot does not have enough rights to send media to your chat"
 	NotSupported    = "Not supported yet, sorry"
-	UuidAlphabet    = "abcdefghijklmnopqrstuvwxyzabcdef"
 )
 
 func (d DistorterBot) HandleAnimationCommon(c tb.Context) (*tb.Message, string, string, error) {

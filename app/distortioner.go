@@ -1,14 +1,13 @@
 package main
 
 import (
-	"encoding/base32"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	tb "gopkg.in/telebot.v3"
@@ -26,6 +25,7 @@ type DistorterBot struct {
 	adminID int64
 	rl      *tools.RateLimiter
 	logger  *zap.SugaredLogger
+	m       *sync.Mutex
 }
 
 func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
@@ -99,43 +99,57 @@ func (d DistorterBot) handleRegularStickerDistortion(c tb.Context) error {
 }
 
 func (d DistorterBot) handleVideoStickerDistortion(c tb.Context) error {
+	c.Notify(tb.ChoosingSticker)
 	filename, output, err := d.HandleVideoSticker(c)
 	if err != nil {
 		d.SendMessageWithRepeater(c, distorters.Failed)
 		return err
 	}
 	webm := tb.FromDisk(output)
-	uniquePart, _ := uuid.New().MarshalBinary()
-	uniquePartStr := base32.NewEncoding(UuidAlphabet).WithPadding(base32.NoPadding).EncodeToString(uniquePart)
+	admin := tb.User{ID: d.adminID}
 
 	b := c.Bot()
-	botUsername := b.Me.Username
-	name := fmt.Sprintf("%s_by_%s", uniquePartStr, botUsername)
-	set := &tb.StickerSet{
-		Name:   name,
-		Title:  "bot api sucks",
-		WebM:   &webm,
-		Emojis: "🍆",
-	}
-	// an ugly workaround, can't find a way to avoid it
-	err = b.CreateStickerSet(&tb.User{ID: d.adminID}, *set)
+	name := fmt.Sprintf("distorset_by_%s", b.Me.Username)
+
+	d.m.Lock()
+	defer d.m.Unlock()
+
+	set, err := b.StickerSet(name)
 	if err != nil {
-		d.logger.Error(err, zap.String("name", name))
-		d.SendMessageWithRepeater(c, distorters.Failed)
+		initialWebm := tb.FromDisk("botapi.webm")
+		set = &tb.StickerSet{
+			Name:   name,
+			Title:  b.Me.FirstName,
+			WebM:   &initialWebm,
+			Emojis: "🍆",
+		}
+		// an ugly workaround, no way to avoid it
+		err = b.CreateStickerSet(&admin, *set)
+		if err != nil {
+			d.logger.Error(err, zap.String("file", initialWebm.FileLocal))
+			d.SendMessageWithRepeater(c, distorters.Failed)
+			return err
+		}
+	}
+
+	set.WebM = &webm
+	set.Emojis = "🅰️"
+	err = b.AddSticker(&admin, *set)
+	if err != nil {
+		d.logger.Error(err, zap.String("file", output))
 		return err
 	}
 	set, err = b.StickerSet(name)
 	if err != nil {
-		d.logger.Error(err)
-		d.SendMessageWithRepeater(c, distorters.Failed)
+		d.logger.Error(err, zap.String("file", output))
 		return err
 	}
-	if len(set.Stickers) == 0 {
+	if len(set.Stickers) < 2 {
 		d.logger.Error("empty stickers field", zap.String("stickerSet", set.Name))
 		d.SendMessageWithRepeater(c, distorters.Failed)
 		return errors.New("empty stickers field")
 	}
-	sticker := set.Stickers[0]
+	sticker := set.Stickers[1]
 	_, err = d.SendMessageWithRepeater(c, &sticker)
 	defer os.Remove(filename)
 	defer os.Remove(output)
@@ -325,6 +339,7 @@ func main() {
 		adminID: adminID,
 		rl:      tools.NewRateLimiter(),
 		logger:  logger,
+		m:       &sync.Mutex{},
 	}
 	b.Poller = tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {
 		if update.Message == nil {
