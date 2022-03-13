@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"gopkg.in/gographics/imagick.v3/imagick"
 	tb "gopkg.in/telebot.v3"
 
 	"github.com/graynk/distortioner/distorters"
@@ -278,6 +279,9 @@ func main() {
 		adminID = -1
 		logger.Fatal("DISTORTIONER_ADMIN_ID variable is not set")
 	}
+
+	imagick.Initialize()
+	defer imagick.Terminate()
 
 	b, err := tb.NewBot(tb.Settings{
 		Token: os.Getenv("DISTORTIONER_BOT_TOKEN"),
