@@ -326,6 +326,10 @@ func main() {
 		if m.FromGroup() && !(isCommand && strings.HasSuffix(text, b.Me.Username)) {
 			return false
 		}
+		// throw away old messages
+		if time.Now().Sub(m.Time()) > 2*time.Hour {
+			return false
+		}
 		if m.FromGroup() {
 			chat, err := b.ChatByID(m.Chat.ID)
 			if err != nil {
