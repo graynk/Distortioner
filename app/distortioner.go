@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"strconv"
@@ -23,41 +24,48 @@ const (
 )
 
 type DistorterBot struct {
-	adminID int64
-	rl      *tools.RateLimiter
-	logger  *zap.SugaredLogger
-	m       *sync.Mutex
-	graceWg *sync.WaitGroup
+	adminID     int64
+	rl          *tools.RateLimiter
+	logger      *zap.SugaredLogger
+	mu          *sync.Mutex
+	graceWg     *sync.WaitGroup
+	videoWorker *tools.VideoWorker
 }
 
 func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
 	m := c.Message()
 	b := c.Bot()
 	if m.Animation.FileSize > MaxSizeMb {
-		return c.Send(distorters.TooBig)
-	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
-		return c.Send(tools.FormatRateLimitResponse(diff))
+		return d.SendMessageWithRepeater(c, distorters.TooBig)
+	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, time.Now().Unix()); rate > tools.AllowedOverTime {
+		return d.SendMessageWithRepeater(c, tools.FormatRateLimitResponse(diff))
 	}
 
-	progressMessage, filename, output, err := d.HandleAnimationCommon(c)
-	failed := err != nil
-	if failed {
-		if progressMessage.Text != distorters.TooLong {
-			d.DoneMessageWithRepeater(b, progressMessage, failed)
+	//TODO: Jesus, just find the time to refactor all of this already
+	d.videoWorker.Submit(m.Chat.ID, func() {
+		progressMessage, filename, output, err := d.HandleAnimationCommon(c)
+		failed := err != nil
+		if failed {
+			if progressMessage.Text != distorters.TooLong {
+				d.DoneMessageWithRepeater(b, progressMessage, failed)
+			}
+			d.logger.Error(err)
 		}
-		return err
-	}
-	defer os.Remove(filename)
-	defer os.Remove(output)
+		defer os.Remove(filename)
+		defer os.Remove(output)
 
-	// not sure why, but now I'm forced to specify filename manually
-	distorted := &tb.Animation{File: tb.FromDisk(output), FileName: output}
-	if m.Caption != "" {
-		distorted.Caption = distorters.DistortText(m.Caption)
+		// not sure why, but now I'm forced to specify filename manually
+		distorted := &tb.Animation{File: tb.FromDisk(output), FileName: output}
+		if m.Caption != "" {
+			distorted.Caption = distorters.DistortText(m.Caption)
+		}
+		err = d.SendMessageWithRepeater(c, distorted)
+		d.DoneMessageWithRepeater(b, progressMessage, failed)
+	})
+	if d.videoWorker.IsBusy() {
+		d.SendMessageWithRepeater(c, distorters.Queued)
 	}
-	_, err = d.SendMessageWithRepeater(c, distorted)
-	d.DoneMessageWithRepeater(b, progressMessage, failed)
-	return err
+	return nil
 }
 
 func (d DistorterBot) handlePhotoDistortion(c tb.Context) error {
@@ -69,7 +77,6 @@ func (d DistorterBot) handlePhotoDistortion(c tb.Context) error {
 	}
 	defer os.Remove(filename)
 	err = distorters.DistortImage(filename)
-	// sure would be nice to have generics here
 	if err != nil {
 		d.SendMessageWithRepeater(c, distorters.Failed)
 		return err
@@ -78,8 +85,7 @@ func (d DistorterBot) handlePhotoDistortion(c tb.Context) error {
 	if m.Caption != "" {
 		distorted.Caption = distorters.DistortText(m.Caption)
 	}
-	_, err = d.SendMessageWithRepeater(c, distorted)
-	return err
+	return d.SendMessageWithRepeater(c, distorted)
 }
 
 func (d DistorterBot) handleRegularStickerDistortion(c tb.Context) error {
@@ -96,8 +102,7 @@ func (d DistorterBot) handleRegularStickerDistortion(c tb.Context) error {
 		return err
 	}
 	distorted := &tb.Sticker{File: tb.FromDisk(filename)}
-	_, err = d.SendMessageWithRepeater(c, distorted)
-	return err
+	return d.SendMessageWithRepeater(c, distorted)
 }
 
 func (d DistorterBot) handleVideoStickerDistortion(c tb.Context) error {
@@ -109,8 +114,7 @@ func (d DistorterBot) handleStickerDistortion(c tb.Context) error {
 	var err error
 	switch {
 	case m.Sticker.Animated:
-		_, err = d.SendMessageWithRepeater(c, NotSupported)
-
+		err = d.SendMessageWithRepeater(c, NotSupported)
 	case m.Sticker.Video:
 		err = d.handleVideoStickerDistortion(c)
 	default:
@@ -120,56 +124,71 @@ func (d DistorterBot) handleStickerDistortion(c tb.Context) error {
 }
 
 func (d DistorterBot) handleTextDistortion(c tb.Context) error {
-	_, err := d.SendMessageWithRepeater(c, distorters.DistortText(c.Text()))
-	return err
+	return d.SendMessageWithRepeater(c, distorters.DistortText(c.Text()))
 }
 
 func (d DistorterBot) handleVideoDistortion(c tb.Context) error {
 	m := c.Message()
 	b := c.Bot()
 	if m.Video.FileSize > MaxSizeMb {
-		return c.Send(distorters.TooBig)
-	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
-		return c.Send(tools.FormatRateLimitResponse(diff))
+		return d.SendMessageWithRepeater(c, distorters.TooBig)
+	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, time.Now().Unix()); rate > tools.AllowedOverTime {
+		return d.SendMessageWithRepeater(c, tools.FormatRateLimitResponse(diff))
 	}
-	output, progressMessage, err := d.HandleVideoCommon(c)
-	failed := err != nil
-	if failed {
-		if progressMessage.Text != distorters.TooLong {
-			d.DoneMessageWithRepeater(b, progressMessage, failed)
-		}
-		return err
-	}
-	defer os.Remove(output)
 
-	distorted := &tb.Video{File: tb.FromDisk(output)}
-	_, err = d.SendMessageWithRepeater(c, distorted)
-	d.DoneMessageWithRepeater(b, progressMessage, failed)
-	return err
+	d.videoWorker.Submit(m.Chat.ID, func() {
+		output, progressMessage, err := d.HandleVideoCommon(c)
+		failed := err != nil
+		if failed {
+			if progressMessage.Text != distorters.TooLong {
+				d.DoneMessageWithRepeater(b, progressMessage, failed)
+			}
+			d.logger.Error(err)
+			return
+		}
+		defer os.Remove(output)
+
+		distorted := &tb.Video{File: tb.FromDisk(output)}
+		err = d.SendMessageWithRepeater(c, distorted)
+		d.DoneMessageWithRepeater(b, progressMessage, failed)
+		if err != nil {
+			d.logger.Error(err)
+		}
+	})
+	if d.videoWorker.IsBusy() {
+		d.SendMessageWithRepeater(c, distorters.Queued)
+	}
+	return nil
 }
 
 func (d DistorterBot) handleVideoNoteDistortion(c tb.Context) error {
 	m := c.Message()
 	b := c.Bot()
-	// video notes are limited with 1 minute anyway
 	if m.VideoNote.FileSize > MaxSizeMb {
-		return c.Send(m.Chat, distorters.TooBig)
-	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
-		return c.Send(m.Chat, tools.FormatRateLimitResponse(diff))
+		return d.SendMessageWithRepeater(c, distorters.TooBig)
+	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, time.Now().Unix()); rate > tools.AllowedOverTime {
+		return d.SendMessageWithRepeater(c, tools.FormatRateLimitResponse(diff))
 	}
-	output, progressMessage, err := d.HandleVideoCommon(c)
-	failed := err != nil
-	if failed {
-		if progressMessage.Text != distorters.TooLong {
-			d.DoneMessageWithRepeater(b, progressMessage, failed)
+
+	d.videoWorker.Submit(m.Chat.ID, func() {
+		output, progressMessage, err := d.HandleVideoCommon(c)
+		failed := err != nil
+		if failed {
+			if progressMessage.Text != distorters.TooLong {
+				d.DoneMessageWithRepeater(b, progressMessage, failed)
+			}
+			d.logger.Error(err)
+			return
 		}
-		return err
+		defer os.Remove(output)
+		distorted := &tb.VideoNote{File: tb.FromDisk(output)}
+		err = d.SendMessageWithRepeater(c, distorted)
+		d.DoneMessageWithRepeater(b, progressMessage, failed)
+	})
+	if d.videoWorker.IsBusy() {
+		d.SendMessageWithRepeater(c, distorters.Queued)
 	}
-	defer os.Remove(output)
-	distorted := &tb.VideoNote{File: tb.FromDisk(output)}
-	_, err = d.SendMessageWithRepeater(c, distorted)
-	d.DoneMessageWithRepeater(b, progressMessage, failed)
-	return err
+	return nil
 }
 
 func (d DistorterBot) handleVoiceDistortion(c tb.Context) error {
@@ -192,8 +211,7 @@ func (d DistorterBot) handleVoiceDistortion(c tb.Context) error {
 	defer os.Remove(output)
 
 	distorted := &tb.Voice{File: tb.FromDisk(output)}
-	_, err = d.SendMessageWithRepeater(c, distorted)
-	return err
+	return d.SendMessageWithRepeater(c, distorted)
 }
 
 func (d DistorterBot) handleReplyDistortion(c tb.Context) error {
@@ -266,8 +284,19 @@ _Text messages_: %d
 	return c.Send(message+details, tb.ModeMarkdown)
 }
 
+func (d DistorterBot) handleQueueStats(c tb.Context) error {
+	if c.Message().Sender.ID != d.adminID {
+		return nil
+	}
+	length, users := d.videoWorker.QueueStats()
+	return c.Send(fmt.Sprintf("Currently in queue: %d requests from %d users", length, users))
+}
+
 func main() {
-	lg, _ := zap.NewProduction()
+	lg, err := zap.NewProduction()
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer lg.Sync() // flushes buffer, if any
 	logger := lg.Sugar()
 	db := stats.InitDB(logger)
@@ -283,11 +312,12 @@ func main() {
 		Token: os.Getenv("DISTORTIONER_BOT_TOKEN"),
 	})
 	d := DistorterBot{
-		adminID: adminID,
-		rl:      tools.NewRateLimiter(),
-		logger:  logger,
-		m:       &sync.Mutex{},
-		graceWg: &sync.WaitGroup{},
+		adminID:     adminID,
+		rl:          tools.NewRateLimiter(),
+		logger:      logger,
+		mu:          &sync.Mutex{},
+		graceWg:     &sync.WaitGroup{},
+		videoWorker: tools.NewVideoWorker(3),
 	}
 	b.Poller = tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {
 		if update.Message == nil {
@@ -297,6 +327,10 @@ func main() {
 		isCommand := len(m.Entities) > 0 && m.Entities[0].Type == tb.EntityCommand
 		text := update.Message.Text
 		if m.FromGroup() && !(isCommand && strings.HasSuffix(text, b.Me.Username)) {
+			return false
+		}
+		// throw away old messages
+		if time.Now().Sub(m.Time()) > 2*time.Hour {
 			return false
 		}
 		if m.FromGroup() {
@@ -316,7 +350,7 @@ func main() {
 				}
 			}
 		}
-		if text != "/daily" && text != "/weekly" && text != "/monthly" {
+		if text != "/daily" && text != "/weekly" && text != "/monthly" && text != "/queue" {
 			go db.SaveStat(update.Message, isCommand)
 		}
 		return true
@@ -343,6 +377,8 @@ func main() {
 		return d.handleStatRequest(c, db, stats.Monthly)
 	}))
 
+	b.Handle("/queue", d.handleQueueStats)
+
 	b.Handle("/distort", d.ApplyShutdownMiddleware(d.handleReplyDistortion))
 	b.Handle(tb.OnAnimation, d.ApplyShutdownMiddleware(d.handleAnimationDistortion))
 	b.Handle(tb.OnSticker, d.ApplyShutdownMiddleware(d.handleStickerDistortion))
@@ -358,7 +394,7 @@ func main() {
 		sig := <-signChan
 
 		logger.Info("shutdown: ", zap.String("signal", sig.String()))
-
+		d.videoWorker.Shutdown()
 		d.graceWg.Wait()
 		b.Stop()
 	}()

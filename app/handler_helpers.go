@@ -20,7 +20,7 @@ const (
 func (d DistorterBot) HandleAnimationCommon(c tb.Context) (*tb.Message, string, string, error) {
 	m := c.Message()
 	b := c.Bot()
-	progressMessage, err := d.SendMessageWithRepeater(c, "Downloading...")
+	progressMessage, err := d.GetProgressMessage(c, "Downloading...")
 	if err != nil {
 		d.logger.Error(err)
 		return nil, "", "", err
@@ -110,7 +110,7 @@ func (d DistorterBot) DoneMessageWithRepeater(b *tb.Bot, m *tb.Message, failed b
 	}
 }
 
-func (d DistorterBot) SendMessageWithRepeater(c tb.Context, toSend interface{}) (*tb.Message, error) {
+func (d DistorterBot) GetProgressMessage(c tb.Context, toSend interface{}) (*tb.Message, error) {
 	b := c.Bot()
 	chat := c.Chat()
 	m, err := b.Send(chat, toSend)
@@ -132,6 +132,11 @@ func (d DistorterBot) SendMessageWithRepeater(c tb.Context, toSend interface{}) 
 	}
 
 	return m, nil
+}
+
+func (d DistorterBot) SendMessageWithRepeater(c tb.Context, toSend interface{}) error {
+	_, err := d.GetProgressMessage(c, toSend)
+	return err
 }
 
 func (d DistorterBot) ApplyShutdownMiddleware(h tb.HandlerFunc) tb.HandlerFunc {

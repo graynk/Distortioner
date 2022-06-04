@@ -20,6 +20,7 @@ const (
 	Failed  = "Failed"
 	TooLong = "Senpai, it's too long.."
 	TooBig  = "Senpai, it's too big.."
+	Queued  = "Your message has been queued"
 )
 
 func DistortVideo(filename, output string, progressChan chan string) {

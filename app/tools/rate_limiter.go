@@ -4,8 +4,8 @@ import (
 	"sync"
 )
 
-const AllowedOverTime = 5
-const TimePeriodSeconds = 30
+const AllowedOverTime = 3
+const TimePeriodSeconds = 300
 
 type MessageRange struct {
 	StartUtc int64
