@@ -9,7 +9,7 @@ func (pq PriorityQueue) Len() int { return len(pq) }
 
 func (pq PriorityQueue) Less(i, j int) bool {
 	if pq[i].priority == pq[j].priority {
-		return pq[i].creationTime.Before(pq[j].creationTime)
+		return pq[i].insertionTime.Before(pq[j].insertionTime)
 	}
 	return pq[i].priority < pq[j].priority
 }
@@ -25,9 +25,9 @@ func (pq *PriorityQueue) Push(x any) {
 
 func (pq *PriorityQueue) Pop() any {
 	old := *pq
-	n := len(old)
-	item := old[n-1]
-	old[n-1] = nil // avoid memory leak
-	*pq = old[0 : n-1]
+	last := len(old) - 1
+	item := old[last]
+	old[last] = nil // avoid memory leak
+	*pq = old[:last]
 	return item
 }

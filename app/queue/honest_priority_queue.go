@@ -3,38 +3,42 @@ package queue
 import (
 	"container/heap"
 	"sync"
+	"time"
 )
 
 // HonestJobQueue It ain't much, but it's an honest job.jpg
 // Wraps PriorityQueue to make it thread-safe. Manages priorities.
 // Extremely inefficient, but works for my use-case (very slow jobs and small queue sizes)
 type HonestJobQueue struct {
-	mu    *sync.Mutex
+	mu    *sync.RWMutex
 	queue PriorityQueue
 	users map[int64]int // Tracks the amount of job per-user currently in the queue. Used to calculate priority
 }
 
-func NewHonestJobQueue(capacity int) *HonestJobQueue {
+func NewHonestJobQueue(initialCapacity int) *HonestJobQueue {
 	return &HonestJobQueue{
-		mu:    &sync.Mutex{},
-		queue: make(PriorityQueue, 0, capacity),
+		mu:    &sync.RWMutex{},
+		queue: make(PriorityQueue, 0, initialCapacity),
 		users: make(map[int64]int),
 	}
 }
 
 func (hjq *HonestJobQueue) updatePriorities(userID int64) {
-	changed := false
-	for _, job := range hjq.queue {
+	for i, job := range hjq.queue {
 		if job.userID != userID {
 			continue
 		}
 		job.priority--
-		changed = true
+		// I don't want very active users to get stuck forever with lower priority, but I DO want them to "re-enter" the queue
+		job.insertionTime = time.Now()
+		heap.Fix(&hjq.queue, i)
 	}
-	if !changed {
-		return
-	}
-	heap.Init(&hjq.queue)
+}
+func (hjq *HonestJobQueue) Len() int {
+	hjq.mu.RLock()
+	defer hjq.mu.RUnlock()
+
+	return len(hjq.queue)
 }
 
 func (hjq *HonestJobQueue) Pop() *Job {
@@ -57,5 +61,5 @@ func (hjq *HonestJobQueue) Push(userID int64, runnable func()) {
 	priority := hjq.users[userID]
 
 	job := newJob(userID, priority, runnable)
-	heap.Push(&hjq.queue, job)
+	heap.Push(&hjq.queue, &job)
 }
