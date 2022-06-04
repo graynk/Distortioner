@@ -40,9 +40,7 @@ func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
 	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, time.Now().Unix()); rate > tools.AllowedOverTime {
 		return d.SendMessageWithRepeater(c, tools.FormatRateLimitResponse(diff))
 	}
-	if d.videoWorker.IsBusy() {
-		d.SendMessageWithRepeater(c, distorters.Queued)
-	}
+
 	//TODO: Jesus, just find the time to refactor all of this already
 	d.videoWorker.Submit(m.Chat.ID, func() {
 		progressMessage, filename, output, err := d.HandleAnimationCommon(c)
@@ -64,6 +62,9 @@ func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
 		err = d.SendMessageWithRepeater(c, distorted)
 		d.DoneMessageWithRepeater(b, progressMessage, failed)
 	})
+	if d.videoWorker.IsBusy() {
+		d.SendMessageWithRepeater(c, distorters.Queued)
+	}
 	return nil
 }
 
@@ -134,9 +135,7 @@ func (d DistorterBot) handleVideoDistortion(c tb.Context) error {
 	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, time.Now().Unix()); rate > tools.AllowedOverTime {
 		return d.SendMessageWithRepeater(c, tools.FormatRateLimitResponse(diff))
 	}
-	if d.videoWorker.IsBusy() {
-		d.SendMessageWithRepeater(c, distorters.Queued)
-	}
+
 	d.videoWorker.Submit(m.Chat.ID, func() {
 		output, progressMessage, err := d.HandleVideoCommon(c)
 		failed := err != nil
@@ -156,6 +155,9 @@ func (d DistorterBot) handleVideoDistortion(c tb.Context) error {
 			d.logger.Error(err)
 		}
 	})
+	if d.videoWorker.IsBusy() {
+		d.SendMessageWithRepeater(c, distorters.Queued)
+	}
 	return nil
 }
 
@@ -167,9 +169,7 @@ func (d DistorterBot) handleVideoNoteDistortion(c tb.Context) error {
 	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, time.Now().Unix()); rate > tools.AllowedOverTime {
 		return d.SendMessageWithRepeater(c, tools.FormatRateLimitResponse(diff))
 	}
-	if d.videoWorker.IsBusy() {
-		d.SendMessageWithRepeater(c, distorters.Queued)
-	}
+
 	d.videoWorker.Submit(m.Chat.ID, func() {
 		output, progressMessage, err := d.HandleVideoCommon(c)
 		failed := err != nil
@@ -185,6 +185,9 @@ func (d DistorterBot) handleVideoNoteDistortion(c tb.Context) error {
 		err = d.SendMessageWithRepeater(c, distorted)
 		d.DoneMessageWithRepeater(b, progressMessage, failed)
 	})
+	if d.videoWorker.IsBusy() {
+		d.SendMessageWithRepeater(c, distorters.Queued)
+	}
 	return nil
 }
 
@@ -314,7 +317,7 @@ func main() {
 		logger:      logger,
 		mu:          &sync.Mutex{},
 		graceWg:     &sync.WaitGroup{},
-		videoWorker: tools.NewVideoWorker(2),
+		videoWorker: tools.NewVideoWorker(3),
 	}
 	b.Poller = tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {
 		if update.Message == nil {

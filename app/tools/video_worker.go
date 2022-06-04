@@ -11,7 +11,7 @@ type VideoWorker struct {
 }
 
 func NewVideoWorker(workerCount int) *VideoWorker {
-	capacity := 50
+	capacity := 300
 	worker := VideoWorker{
 		queue:       queue.NewHonestJobQueue(capacity),
 		messenger:   make(chan interface{}, capacity),
@@ -43,5 +43,5 @@ func (vw *VideoWorker) QueueStats() (int, int) {
 }
 
 func (vw *VideoWorker) IsBusy() bool {
-	return vw.queue.Len() > 0
+	return len(vw.messenger) > 0
 }
