@@ -34,11 +34,19 @@ func (hjq *HonestJobQueue) updatePriorities(userID int64) {
 		heap.Fix(&hjq.queue, i)
 	}
 }
+
 func (hjq *HonestJobQueue) Len() int {
 	hjq.mu.RLock()
 	defer hjq.mu.RUnlock()
 
 	return len(hjq.queue)
+}
+
+func (hjq *HonestJobQueue) Stats() (int, int) {
+	hjq.mu.RLock()
+	defer hjq.mu.RUnlock()
+
+	return len(hjq.queue), len(hjq.users)
 }
 
 func (hjq *HonestJobQueue) Pop() *Job {
@@ -47,6 +55,10 @@ func (hjq *HonestJobQueue) Pop() *Job {
 
 	job := heap.Pop(&hjq.queue).(*Job)
 	hjq.users[job.userID]--
+
+	if hjq.users[job.userID] == 0 {
+		delete(hjq.users, job.userID)
+	}
 
 	hjq.updatePriorities(job.userID)
 

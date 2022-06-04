@@ -281,6 +281,14 @@ _Text messages_: %d
 	return c.Send(message+details, tb.ModeMarkdown)
 }
 
+func (d DistorterBot) handleQueueStats(c tb.Context) error {
+	if c.Message().Sender.ID != d.adminID {
+		return nil
+	}
+	length, users := d.videoWorker.QueueStats()
+	return c.Send(fmt.Sprintf("Currently in queue: %d requests from %d users", length, users))
+}
+
 func main() {
 	lg, err := zap.NewProduction()
 	if err != nil {
@@ -306,7 +314,7 @@ func main() {
 		logger:      logger,
 		mu:          &sync.Mutex{},
 		graceWg:     &sync.WaitGroup{},
-		videoWorker: tools.NewVideoWorker(3),
+		videoWorker: tools.NewVideoWorker(2),
 	}
 	b.Poller = tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {
 		if update.Message == nil {
@@ -335,7 +343,7 @@ func main() {
 				}
 			}
 		}
-		if text != "/daily" && text != "/weekly" && text != "/monthly" {
+		if text != "/daily" && text != "/weekly" && text != "/monthly" && text != "/queue" {
 			go db.SaveStat(update.Message, isCommand)
 		}
 		return true
@@ -361,6 +369,8 @@ func main() {
 	b.Handle("/monthly", d.ApplyShutdownMiddleware(func(c tb.Context) error {
 		return d.handleStatRequest(c, db, stats.Monthly)
 	}))
+
+	b.Handle("/queue", d.handleQueueStats)
 
 	b.Handle("/distort", d.ApplyShutdownMiddleware(d.handleReplyDistortion))
 	b.Handle(tb.OnAnimation, d.ApplyShutdownMiddleware(d.handleAnimationDistortion))

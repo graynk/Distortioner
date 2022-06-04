@@ -38,6 +38,10 @@ func (vw *VideoWorker) Shutdown() {
 	close(vw.messenger)
 }
 
+func (vw *VideoWorker) QueueStats() (int, int) {
+	return vw.queue.Stats()
+}
+
 func (vw *VideoWorker) IsBusy() bool {
-	return vw.queue.Len() > vw.workerCount
+	return vw.queue.Len() > 0
 }
