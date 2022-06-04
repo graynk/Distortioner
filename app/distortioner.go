@@ -37,12 +37,13 @@ func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
 	b := c.Bot()
 	if m.Animation.FileSize > MaxSizeMb {
 		return d.SendMessageWithRepeater(c, distorters.TooBig)
-	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
+	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, time.Now().Unix()); rate > tools.AllowedOverTime {
 		return d.SendMessageWithRepeater(c, tools.FormatRateLimitResponse(diff))
 	}
 	if d.videoWorker.IsBusy() {
 		d.SendMessageWithRepeater(c, distorters.Queued)
 	}
+	//TODO: Jesus, just find the time to refactor all of this already
 	d.videoWorker.Submit(m.Chat.ID, func() {
 		progressMessage, filename, output, err := d.HandleAnimationCommon(c)
 		failed := err != nil
@@ -130,7 +131,7 @@ func (d DistorterBot) handleVideoDistortion(c tb.Context) error {
 	b := c.Bot()
 	if m.Video.FileSize > MaxSizeMb {
 		return d.SendMessageWithRepeater(c, distorters.TooBig)
-	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
+	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, time.Now().Unix()); rate > tools.AllowedOverTime {
 		return d.SendMessageWithRepeater(c, tools.FormatRateLimitResponse(diff))
 	}
 	if d.videoWorker.IsBusy() {
@@ -163,7 +164,7 @@ func (d DistorterBot) handleVideoNoteDistortion(c tb.Context) error {
 	b := c.Bot()
 	if m.VideoNote.FileSize > MaxSizeMb {
 		return d.SendMessageWithRepeater(c, distorters.TooBig)
-	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, m.Unixtime); rate > tools.AllowedOverTime {
+	} else if rate, diff := d.rl.GetRateOverPeriod(m.Chat.ID, time.Now().Unix()); rate > tools.AllowedOverTime {
 		return d.SendMessageWithRepeater(c, tools.FormatRateLimitResponse(diff))
 	}
 	if d.videoWorker.IsBusy() {
