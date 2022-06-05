@@ -88,6 +88,9 @@ func (d DistorterBot) HandleVideoSticker(c tb.Context) (string, string, error) {
 }
 
 func (d DistorterBot) dealWithStatusMessage(b *tb.Bot, m *tb.Message, failed bool) error {
+	if m == nil {
+		return nil
+	}
 	var err error
 	if failed {
 		_, err = b.Edit(m, distorters.Failed)
