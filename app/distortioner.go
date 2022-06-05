@@ -46,7 +46,7 @@ func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
 		progressMessage, filename, output, err := d.HandleAnimationCommon(c)
 		failed := err != nil
 		if failed {
-			if progressMessage.Text != distorters.TooLong {
+			if progressMessage != nil && progressMessage.Text != distorters.TooLong {
 				d.DoneMessageWithRepeater(b, progressMessage, failed)
 			}
 			d.logger.Error(err)
@@ -140,7 +140,7 @@ func (d DistorterBot) handleVideoDistortion(c tb.Context) error {
 		output, progressMessage, err := d.HandleVideoCommon(c)
 		failed := err != nil
 		if failed {
-			if progressMessage.Text != distorters.TooLong {
+			if progressMessage != nil && progressMessage.Text != distorters.TooLong {
 				d.DoneMessageWithRepeater(b, progressMessage, failed)
 			}
 			d.logger.Error(err)
@@ -174,7 +174,7 @@ func (d DistorterBot) handleVideoNoteDistortion(c tb.Context) error {
 		output, progressMessage, err := d.HandleVideoCommon(c)
 		failed := err != nil
 		if failed {
-			if progressMessage.Text != distorters.TooLong {
+			if progressMessage != nil && progressMessage.Text != distorters.TooLong {
 				d.DoneMessageWithRepeater(b, progressMessage, failed)
 			}
 			d.logger.Error(err)

@@ -31,6 +31,7 @@ func (hjq *HonestJobQueue) updatePriorities(userID int64) {
 		job.priority--
 		// I don't want very active users to get stuck forever with lower priority, but I DO want them to "re-enter" the queue
 		job.insertionTime = time.Now()
+		// It's fine to do Fix here, the job will always get moved to the _left_, we won't see the same job twice
 		heap.Fix(&hjq.queue, i)
 	}
 }
