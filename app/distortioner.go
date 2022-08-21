@@ -50,6 +50,7 @@ func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
 				d.DoneMessageWithRepeater(b, progressMessage, failed)
 			}
 			d.logger.Error(err)
+			return
 		}
 		defer os.Remove(filename)
 		defer os.Remove(output)
