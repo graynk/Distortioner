@@ -42,4 +42,5 @@ jobs:
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
           compress_assets: false
+          project_path: "./app"
           binary_name: "distortioner"
