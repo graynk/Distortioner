@@ -17,9 +17,7 @@ import (
 )
 
 const (
-	Failed  = "Failed"
 	TooLong = "Senpai, it's too long.."
-	TooBig  = "Senpai, it's too big.."
 	Queued  = "Your message has been queued"
 )
 
@@ -36,16 +34,17 @@ func DistortVideo(filename, output string, progressChan chan string) {
 	defer os.RemoveAll(framesDir)
 	frameRateFraction, duration, err := GetFrameRateFractionAndDuration(filename)
 	if err != nil {
-		progressChan <- Failed
+		progressChan <- tools.Failed
 		return
 	} else if duration > 30 {
+		// FIXME: very stupid, the initial premise of comparing strings to find errors is bad
 		progressChan <- TooLong
 		return
 	}
 	numberedFileName := fmt.Sprintf("%s/%s%%04d.png", framesDir, filename)
 	err = extractFramesFromVideo(frameRateFraction, filename, numberedFileName)
 	if err != nil {
-		progressChan <- Failed
+		progressChan <- tools.Failed
 		return
 	}
 
@@ -57,7 +56,7 @@ func DistortVideo(filename, output string, progressChan chan string) {
 	for totalFrames := <-doneChan; distortedFrames != totalFrames; {
 		framesDistorted := <-doneChan
 		if framesDistorted == -1 {
-			progressChan <- Failed
+			progressChan <- tools.Failed
 			return
 		}
 		distortedFrames += framesDistorted
@@ -70,7 +69,7 @@ func DistortVideo(filename, output string, progressChan chan string) {
 	progressChan <- "Collecting frames..."
 	err = collectFramesToVideo(numberedFileName, frameRateFraction, output)
 	if err != nil {
-		progressChan <- Failed
+		progressChan <- tools.Failed
 	}
 	return
 }

@@ -12,11 +12,6 @@ import (
 	"github.com/graynk/distortioner/tools"
 )
 
-const (
-	NotEnoughRights = "The bot does not have enough rights to send media to your chat"
-	NotSupported    = "Not supported yet, sorry"
-)
-
 func (d DistorterBot) HandleAnimationCommon(c tb.Context) (*tb.Message, string, string, error) {
 	m := c.Message()
 	b := c.Bot()
@@ -25,7 +20,7 @@ func (d DistorterBot) HandleAnimationCommon(c tb.Context) (*tb.Message, string, 
 		d.logger.Error(err)
 		return nil, "", "", err
 	}
-	filename, err := tools.JustGetTheFile(b, m)
+	filename, err := tools.JustGetTheFile(b, tools.JustGetTheMedia(m))
 	if err != nil {
 		d.logger.Error(err)
 		return nil, "", "", err
@@ -56,8 +51,7 @@ func (d DistorterBot) HandleVideoCommon(c tb.Context) (string, *tb.Message, erro
 		return "", progressMessage, err
 	}
 	defer os.Remove(animationOutput)
-	soundOutput := filename + ".ogg"
-	err = distorters.DistortSound(filename, soundOutput)
+	soundOutput, err := distorters.DistortSound(filename)
 	if err != nil {
 		soundOutput = ""
 	} else {
@@ -73,7 +67,7 @@ func (d DistorterBot) HandleVideoCommon(c tb.Context) (string, *tb.Message, erro
 }
 
 func (d DistorterBot) HandleVideoSticker(c tb.Context) (string, string, error) {
-	filename, err := tools.JustGetTheFile(c.Bot(), c.Message())
+	filename, err := tools.JustGetTheFile(c.Bot(), tools.JustGetTheMedia(c.Message()))
 	if err != nil {
 		d.logger.Error(err)
 		return "", "", err
@@ -93,7 +87,7 @@ func (d DistorterBot) dealWithStatusMessage(b *tb.Bot, m *tb.Message, failed boo
 	}
 	var err error
 	if failed {
-		_, err = b.Edit(m, distorters.Failed)
+		_, err = b.Edit(m, tools.Failed)
 	} else {
 		err = b.Delete(m)
 	}
@@ -119,7 +113,7 @@ func (d DistorterBot) GetProgressMessage(c tb.Context, toSend interface{}) (*tb.
 	m, err := b.Send(chat, toSend)
 	for err != nil {
 		if strings.Contains(err.Error(), "not enough rights to send") {
-			b.Send(chat, NotEnoughRights)
+			b.Send(chat, tools.NotEnoughRights)
 		}
 		var timeout int
 		timeout, err = tools.ExtractPossibleTimeout(err)
@@ -142,7 +136,23 @@ func (d DistorterBot) SendMessageWithRepeater(c tb.Context, toSend interface{}) 
 	return err
 }
 
-func (d DistorterBot) ApplyShutdownMiddleware(h tb.HandlerFunc) tb.HandlerFunc {
+func (d DistorterBot) ErrMiddleware(h tb.HandlerFunc) tb.HandlerFunc {
+	return func(c tb.Context) error {
+		err := h(c)
+		if err != nil {
+			errStr, isFriendly := tools.GetUserFriendlyErr(err)
+			if !isFriendly {
+				d.logger.Error(err)
+			}
+			if sentErr := d.SendMessageWithRepeater(c, errStr); sentErr != nil {
+				d.logger.Error(err)
+			}
+		}
+		return err
+	}
+}
+
+func (d DistorterBot) ShutdownMiddleware(h tb.HandlerFunc) tb.HandlerFunc {
 	return func(c tb.Context) error {
 		d.graceWg.Add(1)
 		err := h(c)

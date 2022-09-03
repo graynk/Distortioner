@@ -1,7 +1,8 @@
 package distorters
 
-func DistortSound(filename, output string) error {
-	return runFfmpeg(
+func DistortSound(filename string) (string, error) {
+	output := filename + ".ogg"
+	return output, runFfmpeg(
 		"-i", filename,
 		"-vn",
 		"-c:a", "libopus",

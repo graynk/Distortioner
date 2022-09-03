@@ -6,10 +6,43 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	tb "gopkg.in/telebot.v3"
 )
 
-const progress = "Processing frames...\n<code>[----------] %d%%</code>"
+const (
+	progress        = "Processing frames...\n<code>[----------] %d%%</code>"
+	MaxSizeMb       = 20_000_000
+	NotEnoughRights = "The bot does not have enough rights to send media to your chat"
+	Failed          = "Failed"
+)
+
+// why isn't this an separate type declared in the telebot?
+const (
+	Animation = "animation"
+	Audio     = "audio"
+	Document  = "document"
+	Photo     = "photo"
+	Sticker   = "sticker"
+	Video     = "video"
+	VideoNote = "videoNote"
+	Voice     = "voice"
+)
+
+var NoFileErr = errors.New("no file found")
+var TooBigErr = errors.New("Senpai, it's too big..")
+var FailedToDownloadErr = errors.New("Failed to download")
+var NotSupportedErr = errors.New("Not supported yet, sorry")
+
+func GetUserFriendlyErr(err error) (string, bool) {
+	switch err {
+	case TooBigErr:
+	case FailedToDownloadErr:
+	case NotSupportedErr:
+		return err.Error(), true
+	}
+	return Failed, false
+}
 
 func GenerateProgressMessage(done, total int) string {
 	fraction := float64(done) / float64(total)
@@ -31,29 +64,32 @@ func IsNonMediaMedia(m *tb.Message) bool {
 	return m.Animation != nil || m.Sticker != nil
 }
 
-func JustGetTheFile(b *tb.Bot, m *tb.Message) (string, error) {
-	var file tb.File
-	filename := uuid.New().String()
-	switch {
-	case m.Animation != nil:
-		file = m.Animation.File
-	case m.Photo != nil:
-		file = m.Photo.File
-	case m.Sticker != nil:
-		file = m.Sticker.File
-	case m.Video != nil:
-		file = m.Video.File
-	case m.VideoNote != nil:
-		file = m.VideoNote.File
-	case m.Voice != nil:
-		file = m.Voice.File
+// there's a bug in telebot where media.MediaFile() does not check for Sticker.
+func JustGetTheMedia(m *tb.Message) tb.Media {
+	media := m.Media()
+	if media == nil && m.Sticker != nil {
+		return m.Sticker
 	}
-	err := b.Download(&file, filename)
-	if err != nil {
-		b.Send(m.Chat, "Failed to download media")
+	return media
+}
+
+func JustGetTheFile(b *tb.Bot, media tb.Media) (string, error) {
+	if media == nil {
+		return "", NoFileErr
+	}
+	file := media.MediaFile()
+	if file == nil {
+		return "", NoFileErr
+	}
+	if file.FileSize > MaxSizeMb {
+		return "", TooBigErr
+	}
+	filename := uuid.New().String()
+	if err := b.Download(file, filename); err != nil {
+		return "", FailedToDownloadErr
 	}
 
-	return filename, err
+	return filename, nil
 }
 
 func ExtractPossibleTimeout(err error) (int, error) {
