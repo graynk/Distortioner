@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	tb "gopkg.in/telebot.v3"
 )
@@ -17,7 +16,7 @@ const (
 	Failed          = "Failed"
 )
 
-// why isn't this an separate type declared in the telebot?
+// why isn't this a separate type declared in the telebot?
 const (
 	Animation = "animation"
 	Audio     = "audio"
@@ -62,34 +61,6 @@ func IsNonMediaMedia(m *tb.Message) bool {
 		return false
 	}
 	return m.Animation != nil || m.Sticker != nil
-}
-
-// there's a bug in telebot where media.MediaFile() does not check for Sticker.
-func JustGetTheMedia(m *tb.Message) tb.Media {
-	media := m.Media()
-	if media == nil && m.Sticker != nil {
-		return m.Sticker
-	}
-	return media
-}
-
-func JustGetTheFile(b *tb.Bot, media tb.Media) (string, error) {
-	if media == nil {
-		return "", NoFileErr
-	}
-	file := media.MediaFile()
-	if file == nil {
-		return "", NoFileErr
-	}
-	if file.FileSize > MaxSizeMb {
-		return "", TooBigErr
-	}
-	filename := uuid.New().String()
-	if err := b.Download(file, filename); err != nil {
-		return "", FailedToDownloadErr
-	}
-
-	return filename, nil
 }
 
 func ExtractPossibleTimeout(err error) (int, error) {
