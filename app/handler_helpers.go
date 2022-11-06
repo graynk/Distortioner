@@ -115,11 +115,11 @@ func (d DistorterBot) DoneMessageWithRepeater(b *tb.Bot, m *tb.Message, failed b
 
 func (d DistorterBot) GetProgressMessage(c tb.Context, toSend interface{}) (*tb.Message, error) {
 	b := c.Bot()
-	chat := c.Chat()
-	m, err := b.Send(chat, toSend)
+	message := c.Message()
+	m, err := b.Reply(message, toSend)
 	for err != nil {
 		if strings.Contains(err.Error(), "not enough rights to send") {
-			b.Send(chat, NotEnoughRights)
+			b.Reply(message, NotEnoughRights)
 		}
 		var timeout int
 		timeout, err = tools.ExtractPossibleTimeout(err)
@@ -128,7 +128,7 @@ func (d DistorterBot) GetProgressMessage(c tb.Context, toSend interface{}) (*tb.
 			return nil, err
 		}
 		time.Sleep(time.Duration(timeout) * time.Second)
-		m, err = b.Send(chat, toSend)
+		m, err = b.Reply(message, toSend)
 		if err != nil {
 			d.logger.Error(err)
 		}

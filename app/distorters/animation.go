@@ -38,7 +38,7 @@ func DistortVideo(filename, output string, progressChan chan string) {
 	if err != nil {
 		progressChan <- Failed
 		return
-	} else if duration > 30 {
+	} else if duration > 60 {
 		progressChan <- TooLong
 		return
 	}
