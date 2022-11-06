@@ -177,9 +177,9 @@ func (d DistorterBot) handleVideoNoteDistortion(c tb.Context) error {
 		failed := err != nil
 		if failed {
 			if progressMessage != nil && progressMessage.Text != distorters.TooLong {
+				d.logger.Error(err)
 				d.DoneMessageWithRepeater(b, progressMessage, failed)
 			}
-			d.logger.Error(err)
 			return
 		}
 		defer os.Remove(output)
@@ -363,6 +363,7 @@ func main() {
 		return
 	}
 
+	b.Use(middleware.Recover())
 	b.Handle("/start", func(c tb.Context) error {
 		return c.Reply("Send me a picture, a sticker, a voice message, a video[note] or a GIF and I'll distort it")
 	})
@@ -389,7 +390,6 @@ func main() {
 	b.Handle(tb.OnVideo, d.ApplyShutdownMiddleware(d.handleVideoDistortion))
 	b.Handle(tb.OnVideoNote, d.ApplyShutdownMiddleware(d.handleVideoNoteDistortion))
 	b.Handle(tb.OnText, d.ApplyShutdownMiddleware(d.handleTextDistortion))
-	b.Use(middleware.Recover())
 
 	go func() {
 		signChan := make(chan os.Signal, 1)
