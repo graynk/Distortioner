@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/zap"
 	tb "gopkg.in/telebot.v3"
+	"gopkg.in/telebot.v3/middleware"
 
 	"github.com/graynk/distortioner/distorters"
 	"github.com/graynk/distortioner/stats"
@@ -107,7 +108,7 @@ func (d DistorterBot) handleRegularStickerDistortion(c tb.Context) error {
 }
 
 func (d DistorterBot) handleVideoStickerDistortion(c tb.Context) error {
-	return c.Send("You can go vote for this suggestion, for .webm stickers handling to become somewhat tolerable https://bugs.telegram.org/c/14858")
+	return c.Reply("You can go vote for this suggestion, for .webm stickers handling to become somewhat tolerable https://bugs.telegram.org/c/14858")
 }
 
 func (d DistorterBot) handleStickerDistortion(c tb.Context) error {
@@ -195,7 +196,7 @@ func (d DistorterBot) handleVideoNoteDistortion(c tb.Context) error {
 func (d DistorterBot) handleVoiceDistortion(c tb.Context) error {
 	m := c.Message()
 	if m.Voice.FileSize > MaxSizeMb {
-		return c.Send(m.Chat, distorters.TooBig)
+		return c.Reply(distorters.TooBig)
 	}
 	filename, err := tools.JustGetTheFile(c.Bot(), m)
 	if err != nil {
@@ -222,7 +223,7 @@ func (d DistorterBot) handleReplyDistortion(c tb.Context) error {
 		if m.FromGroup() {
 			msg += "\nYou might also need to make chat history visible for new members if your group is private."
 		}
-		return c.Send(msg)
+		return c.Reply(msg)
 	}
 	original := m.ReplyTo
 	update := c.Update()
@@ -255,7 +256,7 @@ func (d DistorterBot) handleStatRequest(c tb.Context, db *stats.DistortionerDB, 
 	stat, err := db.GetStat(period)
 	if err != nil {
 		d.logger.Error(err)
-		return c.Send(err.Error())
+		return c.Reply(err.Error())
 	}
 	header := "Stats for the past %s"
 	switch period {
@@ -282,7 +283,7 @@ _Photos_: %d
 _Text messages_: %d
 `,
 		stat.Sticker, stat.Animation, stat.Video, stat.VideoNote, stat.Voice, stat.Photo, stat.Text)
-	return c.Send(message+details, tb.ModeMarkdown)
+	return c.Reply(message+details, tb.ModeMarkdown)
 }
 
 func (d DistorterBot) handleQueueStats(c tb.Context) error {
@@ -290,7 +291,7 @@ func (d DistorterBot) handleQueueStats(c tb.Context) error {
 		return nil
 	}
 	length, users := d.videoWorker.QueueStats()
-	return c.Send(fmt.Sprintf("Currently in queue: %d requests from %d users", length, users))
+	return c.Reply(fmt.Sprintf("Currently in queue: %d requests from %d users", length, users))
 }
 
 func main() {
@@ -346,7 +347,7 @@ func main() {
 					logger.Warn("can't send anything at all", zap.Int64("chat_id", m.Chat.ID))
 					return false
 				} else if (!permissions.CanSendMedia && tools.IsMedia(m.ReplyTo)) || (!permissions.CanSendOther && tools.IsNonMediaMedia(m.ReplyTo)) {
-					b.Send(m.Chat, NotEnoughRights)
+					b.Reply(m, NotEnoughRights)
 					return false
 				}
 			}
@@ -363,7 +364,7 @@ func main() {
 	}
 
 	b.Handle("/start", func(c tb.Context) error {
-		return c.Send("Send me a picture, a sticker, a voice message, a video[note] or a GIF and I'll distort it")
+		return c.Reply("Send me a picture, a sticker, a voice message, a video[note] or a GIF and I'll distort it")
 	})
 
 	b.Handle("/daily", d.ApplyShutdownMiddleware(func(c tb.Context) error {
@@ -388,6 +389,7 @@ func main() {
 	b.Handle(tb.OnVideo, d.ApplyShutdownMiddleware(d.handleVideoDistortion))
 	b.Handle(tb.OnVideoNote, d.ApplyShutdownMiddleware(d.handleVideoNoteDistortion))
 	b.Handle(tb.OnText, d.ApplyShutdownMiddleware(d.handleTextDistortion))
+	b.Use(middleware.Recover())
 
 	go func() {
 		signChan := make(chan os.Signal, 1)

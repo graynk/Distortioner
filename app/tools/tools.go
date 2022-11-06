@@ -32,25 +32,11 @@ func IsNonMediaMedia(m *tb.Message) bool {
 }
 
 func JustGetTheFile(b *tb.Bot, m *tb.Message) (string, error) {
-	var file tb.File
 	filename := uuid.New().String()
-	switch {
-	case m.Animation != nil:
-		file = m.Animation.File
-	case m.Photo != nil:
-		file = m.Photo.File
-	case m.Sticker != nil:
-		file = m.Sticker.File
-	case m.Video != nil:
-		file = m.Video.File
-	case m.VideoNote != nil:
-		file = m.VideoNote.File
-	case m.Voice != nil:
-		file = m.Voice.File
-	}
-	err := b.Download(&file, filename)
+	file := m.Media().MediaFile()
+	err := b.Download(file, filename)
 	if err != nil {
-		b.Send(m.Chat, "Failed to download media")
+		b.Reply(m, "Failed to download media")
 	}
 
 	return filename, err
