@@ -36,7 +36,7 @@ func DistortVideo(filename, output string, progressChan chan string) {
 	if err != nil {
 		progressChan <- tools.Failed
 		return
-	} else if duration > 30 {
+	} else if duration > 60 {
 		// FIXME: very stupid, the initial premise of comparing strings to find errors is bad
 		progressChan <- TooLong
 		return

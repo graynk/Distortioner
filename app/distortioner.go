@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/zap"
 	tb "gopkg.in/telebot.v3"
+	"gopkg.in/telebot.v3/middleware"
 
 	"github.com/graynk/distortioner/bot"
 	"github.com/graynk/distortioner/stats"
@@ -80,7 +81,7 @@ func main() {
 	}
 
 	commonGroup := b.Group()
-	commonGroup.Use(d.GetTheFileOrErrorOutMiddleware, d.ErrMiddleware, d.ShutdownMiddleware)
+	commonGroup.Use(middleware.Recover(), d.GetTheFileOrErrorOutMiddleware, d.ErrMiddleware, d.ShutdownMiddleware)
 
 	commonGroup.Handle("/start", func(c tb.Context) error {
 		return d.SendMessageWithRepeater(c, "Send me a picture, a sticker, a voice message, a video[note] or a GIF and I'll distort it")

@@ -103,9 +103,9 @@ func (d distorterBot) HandleVideoNoteDistortion(c tb.Context) error {
 		failed := err != nil
 		if failed {
 			if progressMessage != nil && progressMessage.Text != distorters.TooLong {
+				d.logger.Error(err)
 				d.DoneMessageWithRepeater(b, progressMessage, failed)
 			}
-			d.logger.Error(err)
 			return
 		}
 		defer os.Remove(output)

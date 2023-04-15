@@ -47,7 +47,6 @@ func (d distorterBot) ShutdownMiddleware(h tb.HandlerFunc) tb.HandlerFunc {
 	}
 }
 
-// there's a bug in telebot where media.MediaFile() does not check for Sticker.
 func JustGetTheMedia(b *tb.Bot, m *tb.Message) (media.Media, error) {
 	filename := uuid.New().String()
 	var mediaFile media.Media
