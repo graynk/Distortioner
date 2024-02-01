@@ -313,6 +313,9 @@ func main() {
 	b, err := tb.NewBot(tb.Settings{
 		Token: os.Getenv("DISTORTIONER_BOT_TOKEN"),
 	})
+	if err != nil {
+		logger.Fatal(err)
+	}
 	d := DistorterBot{
 		adminID:     adminID,
 		rl:          tools.NewRateLimiter(),
