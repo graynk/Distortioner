@@ -23,6 +23,10 @@ func NewVideoWorker(workerCount int) *VideoWorker {
 	return &worker
 }
 
+func (vw *VideoWorker) BanUser(userID int64) {
+	vw.queue.BanUser(userID)
+}
+
 func (vw *VideoWorker) run() {
 	for range vw.messenger {
 		vw.queue.Pop().Run()

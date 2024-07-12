@@ -10,17 +10,29 @@ import (
 // Wraps PriorityQueue to make it thread-safe. Manages priorities.
 // Extremely inefficient, but works for my use-case (very slow jobs and small queue sizes)
 type HonestJobQueue struct {
-	mu    *sync.RWMutex
-	queue PriorityQueue
-	users map[int64]int // Tracks the amount of job per-user currently in the queue. Used to calculate priority
+	mu     *sync.RWMutex
+	queue  PriorityQueue
+	users  map[int64]int // Tracks the amount of job per-user currently in the queue. Used to calculate priority
+	banned map[int64]any // Drop jobs from these users
 }
 
 func NewHonestJobQueue(initialCapacity int) *HonestJobQueue {
 	return &HonestJobQueue{
-		mu:    &sync.RWMutex{},
-		queue: make(PriorityQueue, 0, initialCapacity),
-		users: make(map[int64]int),
+		mu:     &sync.RWMutex{},
+		queue:  make(PriorityQueue, 0, initialCapacity),
+		users:  make(map[int64]int),
+		banned: make(map[int64]any),
 	}
+}
+
+// BanUser This will "ban" the user (if they were impatient and banned the bot first)
+// causing their jobs to be dropped when they pop up. Once all the jobs have been popped
+// the ban will be lifted
+func (hjq *HonestJobQueue) BanUser(userID int64) {
+	hjq.mu.Lock()
+	defer hjq.mu.Unlock()
+
+	hjq.banned[userID] = nil
 }
 
 func (hjq *HonestJobQueue) updatePriorities(userID int64) {
@@ -55,6 +67,23 @@ func (hjq *HonestJobQueue) Pop() *Job {
 	defer hjq.mu.Unlock()
 
 	job := heap.Pop(&hjq.queue).(*Job)
+
+	if _, ok := hjq.banned[job.userID]; ok {
+		allBannedJobsExhausted := true
+		for _, queued := range hjq.queue {
+			if queued.userID == job.userID {
+				allBannedJobsExhausted = false
+				break
+			}
+		}
+
+		if allBannedJobsExhausted {
+			delete(hjq.banned, job.userID)
+		}
+
+		return hjq.Pop()
+	}
+
 	hjq.users[job.userID]--
 
 	if hjq.users[job.userID] == 0 {

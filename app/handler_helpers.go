@@ -17,10 +17,17 @@ const (
 	NotSupported    = "Not supported yet, sorry"
 )
 
+type MethodOfResponding = int
+
+const (
+	Reply MethodOfResponding = iota
+	Send
+)
+
 func (d DistorterBot) HandleAnimationCommon(c tb.Context) (*tb.Message, string, string, error) {
 	m := c.Message()
 	b := c.Bot()
-	progressMessage, err := d.GetProgressMessage(c, "Downloading...")
+	progressMessage, err := d.SendMessage(c, "Downloading...", Reply)
 	if err != nil {
 		d.logger.Error(err)
 		return nil, "", "", err
@@ -113,14 +120,27 @@ func (d DistorterBot) DoneMessageWithRepeater(b *tb.Bot, m *tb.Message, failed b
 	}
 }
 
-func (d DistorterBot) GetProgressMessage(c tb.Context, toSend interface{}) (*tb.Message, error) {
+func (d DistorterBot) SendMessage(c tb.Context, toSend interface{}, method MethodOfResponding) (*tb.Message, error) {
 	b := c.Bot()
 	message := c.Message()
-	m, err := b.Reply(message, toSend)
+
+	var m *tb.Message
+	var err error
+	if method == Reply {
+		m, err = b.Reply(message, toSend)
+	} else {
+		m, err = b.Send(message.Chat, toSend)
+	}
 	for err != nil {
-		if strings.Contains(err.Error(), "not enough rights to send") {
+		switch {
+		case strings.Contains(err.Error(), "not enough rights to send"):
 			b.Reply(message, NotEnoughRights)
+		case strings.Contains(err.Error(), "bot was blocked by the user (403)"):
+			d.videoWorker.BanUser(message.Chat.ID)
+		case strings.Contains(err.Error(), "telegram: Bad Request: message to be replied not found (400)"):
+			return d.SendMessage(c, toSend, Send)
 		}
+
 		var timeout int
 		timeout, err = tools.ExtractPossibleTimeout(err)
 		if err != nil {
@@ -138,7 +158,7 @@ func (d DistorterBot) GetProgressMessage(c tb.Context, toSend interface{}) (*tb.
 }
 
 func (d DistorterBot) SendMessageWithRepeater(c tb.Context, toSend interface{}) error {
-	_, err := d.GetProgressMessage(c, toSend)
+	_, err := d.SendMessage(c, toSend, Reply)
 	return err
 }
 
