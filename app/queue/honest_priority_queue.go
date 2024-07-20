@@ -2,6 +2,7 @@ package queue
 
 import (
 	"container/heap"
+	"github.com/pkg/errors"
 	"sync"
 	"time"
 )
@@ -95,13 +96,21 @@ func (hjq *HonestJobQueue) Pop() *Job {
 	return job
 }
 
-func (hjq *HonestJobQueue) Push(userID int64, runnable func()) {
+func (hjq *HonestJobQueue) Push(userID int64, runnable func()) error {
 	hjq.mu.Lock()
 	defer hjq.mu.Unlock()
 
-	hjq.users[userID]++
 	priority := hjq.users[userID]
+
+	if priority > 2 {
+		hjq.users[userID]--
+		return errors.New("you're distorting videos too often, wait until the previous ones have been processed")
+	}
+
+	hjq.users[userID] = priority + 1
 
 	job := newJob(userID, priority, runnable)
 	heap.Push(&hjq.queue, &job)
+
+	return nil
 }

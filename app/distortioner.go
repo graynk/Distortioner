@@ -43,7 +43,7 @@ func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
 	}
 
 	//TODO: Jesus, just find the time to refactor all of this already
-	d.videoWorker.Submit(m.Chat.ID, func() {
+	err := d.videoWorker.Submit(m.Chat.ID, func() {
 		progressMessage, filename, output, err := d.HandleAnimationCommon(c)
 		failed := err != nil
 		if failed {
@@ -64,6 +64,10 @@ func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
 		err = d.SendMessageWithRepeater(c, distorted)
 		d.DoneMessageWithRepeater(b, progressMessage, failed)
 	})
+	if err != nil {
+		d.SendMessageWithRepeater(c, err.Error())
+		return nil
+	}
 	if d.videoWorker.IsBusy() {
 		d.SendMessageWithRepeater(c, distorters.Queued)
 	}
@@ -138,7 +142,7 @@ func (d DistorterBot) handleVideoDistortion(c tb.Context) error {
 		return d.SendMessageWithRepeater(c, tools.FormatRateLimitResponse(diff))
 	}
 
-	d.videoWorker.Submit(m.Chat.ID, func() {
+	err := d.videoWorker.Submit(m.Chat.ID, func() {
 		output, progressMessage, err := d.HandleVideoCommon(c)
 		failed := err != nil
 		if failed {
@@ -157,6 +161,10 @@ func (d DistorterBot) handleVideoDistortion(c tb.Context) error {
 			d.logger.Error(err)
 		}
 	})
+	if err != nil {
+		d.SendMessageWithRepeater(c, err.Error())
+		return nil
+	}
 	if d.videoWorker.IsBusy() {
 		d.SendMessageWithRepeater(c, distorters.Queued)
 	}
@@ -172,7 +180,7 @@ func (d DistorterBot) handleVideoNoteDistortion(c tb.Context) error {
 		return d.SendMessageWithRepeater(c, tools.FormatRateLimitResponse(diff))
 	}
 
-	d.videoWorker.Submit(m.Chat.ID, func() {
+	err := d.videoWorker.Submit(m.Chat.ID, func() {
 		output, progressMessage, err := d.HandleVideoCommon(c)
 		failed := err != nil
 		if failed {
@@ -187,6 +195,10 @@ func (d DistorterBot) handleVideoNoteDistortion(c tb.Context) error {
 		err = d.SendMessageWithRepeater(c, distorted)
 		d.DoneMessageWithRepeater(b, progressMessage, failed)
 	})
+	if err != nil {
+		d.SendMessageWithRepeater(c, err.Error())
+		return nil
+	}
 	if d.videoWorker.IsBusy() {
 		d.SendMessageWithRepeater(c, distorters.Queued)
 	}
