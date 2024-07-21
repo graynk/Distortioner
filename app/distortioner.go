@@ -341,13 +341,22 @@ func main() {
 	if codec == "" {
 		codec = "libx264"
 	}
+	priorityChatsStr := strings.Split(os.Getenv("DISTORTIONER_PRIORITY_CHATS"), ",")
+	priorityChats := make([]int64, len(priorityChatsStr))
+	for i, s := range priorityChatsStr {
+		priorityChats[i], err = strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			logger.Fatal(err)
+		}
+	}
+
 	d := DistorterBot{
 		adminID:     adminID,
 		rl:          tools.NewRateLimiter(),
 		logger:      logger,
 		mu:          &sync.Mutex{},
 		graceWg:     &sync.WaitGroup{},
-		videoWorker: tools.NewVideoWorker(3),
+		videoWorker: tools.NewVideoWorker(3, priorityChats),
 		codec:       codec,
 	}
 	b.Poller = tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {

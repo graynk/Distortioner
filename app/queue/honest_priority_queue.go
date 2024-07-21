@@ -11,19 +11,25 @@ import (
 // Wraps PriorityQueue to make it thread-safe. Manages priorities.
 // Extremely inefficient, but works for my use-case (very slow jobs and small queue sizes)
 type HonestJobQueue struct {
-	mu          *sync.RWMutex
-	queue       PriorityQueue
-	users       map[int64]int // Tracks the amount of job per-user currently in the queue. Used to calculate priority
-	banned      map[int64]any // Drop jobs from these users
-	maintenance bool
+	mu            *sync.RWMutex
+	queue         PriorityQueue
+	users         map[int64]int // Tracks the amount of job per-user currently in the queue. Used to calculate priority
+	banned        map[int64]any // Drop jobs from these users
+	maintenance   bool
+	priorityChats map[int64]any // not very honest of an honest job queue, but I don't care, I'm not waiting with everybody else
 }
 
-func NewHonestJobQueue(initialCapacity int) *HonestJobQueue {
+func NewHonestJobQueue(initialCapacity int, priorityChats []int64) *HonestJobQueue {
+	priorityChatsMap := make(map[int64]any)
+	for _, chat := range priorityChats {
+		priorityChatsMap[chat] = nil
+	}
 	return &HonestJobQueue{
-		mu:     &sync.RWMutex{},
-		queue:  make(PriorityQueue, 0, initialCapacity),
-		users:  make(map[int64]int),
-		banned: make(map[int64]any),
+		mu:            &sync.RWMutex{},
+		queue:         make(PriorityQueue, 0, initialCapacity),
+		users:         make(map[int64]int),
+		banned:        make(map[int64]any),
+		priorityChats: priorityChatsMap,
 	}
 }
 
@@ -117,8 +123,11 @@ func (hjq *HonestJobQueue) Push(userID int64, runnable func()) error {
 	if hjq.queue.Len() > 2000 {
 		return errors.New("There are too many items queued already, try again later")
 	}
-
 	priority := hjq.users[userID]
+	_, ok := hjq.priorityChats[userID]
+	if ok {
+		priority = -2
+	}
 
 	if priority > 2 {
 		hjq.users[userID]--

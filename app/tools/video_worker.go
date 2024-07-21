@@ -10,10 +10,10 @@ type VideoWorker struct {
 	workerCount int
 }
 
-func NewVideoWorker(workerCount int) *VideoWorker {
+func NewVideoWorker(workerCount int, priorityChats []int64) *VideoWorker {
 	capacity := 300
 	worker := VideoWorker{
-		queue:       queue.NewHonestJobQueue(capacity),
+		queue:       queue.NewHonestJobQueue(capacity, priorityChats),
 		messenger:   make(chan interface{}, capacity),
 		workerCount: workerCount,
 	}

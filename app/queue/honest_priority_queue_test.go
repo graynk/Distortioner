@@ -7,7 +7,7 @@ import (
 )
 
 func TestHonestJobQueue_InsertionOrder(t *testing.T) {
-	hjq := NewHonestJobQueue(50)
+	hjq := NewHonestJobQueue(50, []int64{})
 	for id := int64(1); id < 4; id++ {
 		hjq.Push(id, func() {})
 	}
@@ -20,7 +20,7 @@ func TestHonestJobQueue_InsertionOrder(t *testing.T) {
 }
 
 func TestHonestJobQueue_RepeatUsers(t *testing.T) {
-	hjq := NewHonestJobQueue(50)
+	hjq := NewHonestJobQueue(50, []int64{})
 
 	// three jobs by user 1
 	for i := 0; i < 3; i++ {
