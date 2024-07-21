@@ -29,7 +29,10 @@ func (vw *VideoWorker) BanUser(userID int64) {
 
 func (vw *VideoWorker) run() {
 	for range vw.messenger {
-		vw.queue.Pop().Run()
+		job := vw.queue.Pop()
+		if job != nil {
+			job.Run()
+		}
 	}
 }
 

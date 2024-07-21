@@ -137,6 +137,7 @@ func (d DistorterBot) SendMessage(c tb.Context, toSend interface{}, method Metho
 			b.Reply(message, NotEnoughRights)
 		case strings.Contains(err.Error(), "bot was blocked by the user (403)"):
 			d.videoWorker.BanUser(message.Chat.ID)
+			return nil, nil
 		case strings.Contains(err.Error(), "telegram: Bad Request: message to be replied not found (400)"):
 			return d.SendMessage(c, toSend, Send)
 		}

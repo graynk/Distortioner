@@ -76,20 +76,11 @@ func (hjq *HonestJobQueue) Pop() *Job {
 
 	job := heap.Pop(&hjq.queue).(*Job)
 
-	if _, ok := hjq.banned[job.userID]; ok {
-		allBannedJobsExhausted := true
-		for _, queued := range hjq.queue {
-			if queued.userID == job.userID {
-				allBannedJobsExhausted = false
-				break
-			}
+	for _, ok := hjq.banned[job.userID]; ok; {
+		if hjq.queue.Len() == 0 {
+			return nil
 		}
-
-		if allBannedJobsExhausted {
-			delete(hjq.banned, job.userID)
-		}
-
-		return hjq.Pop()
+		job = heap.Pop(&hjq.queue).(*Job)
 	}
 
 	hjq.users[job.userID]--
@@ -132,6 +123,11 @@ func (hjq *HonestJobQueue) Push(userID int64, runnable func()) error {
 	if priority > 2 {
 		hjq.users[userID]--
 		return errors.New("You're distorting videos too often, wait until the previous ones have been processed")
+	}
+
+	// if a user sent us a message then we're clearly unbanned
+	if _, ok := hjq.banned[userID]; ok {
+		delete(hjq.banned, userID)
 	}
 
 	hjq.users[userID] = priority + 1

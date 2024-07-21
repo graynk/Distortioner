@@ -344,6 +344,9 @@ func main() {
 	priorityChatsStr := strings.Split(os.Getenv("DISTORTIONER_PRIORITY_CHATS"), ",")
 	priorityChats := make([]int64, len(priorityChatsStr))
 	for i, s := range priorityChatsStr {
+		if s == "" {
+			continue
+		}
 		priorityChats[i], err = strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			logger.Fatal(err)
