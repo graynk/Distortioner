@@ -51,5 +51,5 @@ func (vw *VideoWorker) QueueStats() (int, int) {
 }
 
 func (vw *VideoWorker) IsBusy() bool {
-	return vw.queue.Len() > 0
+	return vw.queue.Len() > vw.workerCount
 }

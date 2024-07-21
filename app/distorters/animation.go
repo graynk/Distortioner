@@ -23,7 +23,7 @@ const (
 	Queued  = "Your message has been queued"
 )
 
-func DistortVideo(filename, output string, progressChan chan string) {
+func DistortVideo(filename, codec, output string, progressChan chan string) {
 	progressChan <- "Extracting frames..."
 	defer close(progressChan)
 	framesDir := filename + "Frames"
@@ -68,7 +68,7 @@ func DistortVideo(filename, output string, progressChan chan string) {
 		}
 	}
 	progressChan <- "Collecting frames..."
-	err = collectFramesToVideo(numberedFileName, frameRateFraction, output)
+	err = collectFramesToVideo(numberedFileName, frameRateFraction, codec, output)
 	if err != nil {
 		progressChan <- Failed
 	}
@@ -116,11 +116,11 @@ func extractFramesFromVideoSticker(frameRateFraction, filename, numberedFileName
 		numberedFileName)
 }
 
-func collectFramesToVideo(numberedFileName, frameRateFraction, filename string) error {
+func collectFramesToVideo(numberedFileName, frameRateFraction, codec, filename string) error {
 	return runFfmpeg("-r", frameRateFraction,
 		"-i", numberedFileName,
 		"-f", "mp4",
-		"-c:v", "libx264",
+		"-c:v", codec,
 		"-an",
 		"-pix_fmt", "yuv420p",
 		filename)

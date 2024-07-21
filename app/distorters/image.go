@@ -10,10 +10,11 @@ import (
 
 func DistortImage(path string) error {
 	cmd := exec.Command(
-		"mogrify",
-		"-scale", "512x512>", // A reasonable cutoff, I hope
+		"magick",
+		path,
+		"-resize", "512x512>", // A reasonable cutoff, I hope
 		"-liquid-rescale", "50%",
-		"-scale", "200%",
+		"-resize", "200%",
 		path)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,

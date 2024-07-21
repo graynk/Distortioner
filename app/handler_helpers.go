@@ -39,7 +39,7 @@ func (d DistorterBot) HandleAnimationCommon(c tb.Context) (*tb.Message, string, 
 	}
 	animationOutput := filename + ".mp4"
 	progressChan := make(chan string, 3)
-	go distorters.DistortVideo(filename, animationOutput, progressChan)
+	go distorters.DistortVideo(filename, d.codec, animationOutput, progressChan)
 	for report := range progressChan {
 		if progressMessage == nil {
 			continue

@@ -31,6 +31,7 @@ type DistorterBot struct {
 	mu          *sync.Mutex
 	graceWg     *sync.WaitGroup
 	videoWorker *tools.VideoWorker
+	codec       string
 }
 
 func (d DistorterBot) handleAnimationDistortion(c tb.Context) error {
@@ -328,6 +329,10 @@ func main() {
 	if err != nil {
 		logger.Fatal(err)
 	}
+	codec := os.Getenv("DISTORTIONER_CODEC")
+	if codec == "" {
+		codec = "libx264"
+	}
 	d := DistorterBot{
 		adminID:     adminID,
 		rl:          tools.NewRateLimiter(),
@@ -335,6 +340,7 @@ func main() {
 		mu:          &sync.Mutex{},
 		graceWg:     &sync.WaitGroup{},
 		videoWorker: tools.NewVideoWorker(3),
+		codec:       codec,
 	}
 	b.Poller = tb.NewMiddlewarePoller(&tb.LongPoller{Timeout: 10 * time.Second}, func(update *tb.Update) bool {
 		if update.Message == nil {
