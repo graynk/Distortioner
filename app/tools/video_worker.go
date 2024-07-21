@@ -53,3 +53,7 @@ func (vw *VideoWorker) QueueStats() (int, int) {
 func (vw *VideoWorker) IsBusy() bool {
 	return vw.queue.Len() > vw.workerCount
 }
+
+func (vw *VideoWorker) ToggleMaintenance() bool {
+	return vw.queue.ToggleMaintenance()
+}

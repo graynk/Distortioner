@@ -11,10 +11,11 @@ import (
 // Wraps PriorityQueue to make it thread-safe. Manages priorities.
 // Extremely inefficient, but works for my use-case (very slow jobs and small queue sizes)
 type HonestJobQueue struct {
-	mu     *sync.RWMutex
-	queue  PriorityQueue
-	users  map[int64]int // Tracks the amount of job per-user currently in the queue. Used to calculate priority
-	banned map[int64]any // Drop jobs from these users
+	mu          *sync.RWMutex
+	queue       PriorityQueue
+	users       map[int64]int // Tracks the amount of job per-user currently in the queue. Used to calculate priority
+	banned      map[int64]any // Drop jobs from these users
+	maintenance bool
 }
 
 func NewHonestJobQueue(initialCapacity int) *HonestJobQueue {
@@ -96,15 +97,32 @@ func (hjq *HonestJobQueue) Pop() *Job {
 	return job
 }
 
+func (hjq *HonestJobQueue) ToggleMaintenance() bool {
+	hjq.mu.Lock()
+	defer hjq.mu.Unlock()
+
+	hjq.maintenance = !hjq.maintenance
+
+	return hjq.maintenance
+}
+
 func (hjq *HonestJobQueue) Push(userID int64, runnable func()) error {
 	hjq.mu.Lock()
 	defer hjq.mu.Unlock()
+
+	if hjq.maintenance {
+		return errors.New("The server is on temporary maintenance, no new videos are being processed at the moment, try again later")
+	}
+
+	if hjq.queue.Len() > 2000 {
+		return errors.New("There are too many items queued already, try again later")
+	}
 
 	priority := hjq.users[userID]
 
 	if priority > 2 {
 		hjq.users[userID]--
-		return errors.New("you're distorting videos too often, wait until the previous ones have been processed")
+		return errors.New("You're distorting videos too often, wait until the previous ones have been processed")
 	}
 
 	hjq.users[userID] = priority + 1

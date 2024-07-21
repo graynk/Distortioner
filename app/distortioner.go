@@ -307,6 +307,14 @@ func (d DistorterBot) handleQueueStats(c tb.Context) error {
 	return c.Reply(fmt.Sprintf("Currently in queue: %d requests from %d users", length, users))
 }
 
+func (d DistorterBot) handleMaintenance(c tb.Context) error {
+	if c.Message().Sender.ID != d.adminID {
+		return nil
+	}
+	currentMode := d.videoWorker.ToggleMaintenance()
+	return c.Reply(fmt.Sprintf("Maintenance on: %v", currentMode))
+}
+
 func main() {
 	lg, err := zap.NewProduction()
 	if err != nil {
@@ -402,6 +410,8 @@ func main() {
 	}))
 
 	b.Handle("/queue", d.handleQueueStats)
+
+	b.Handle("/maintenance", d.handleMaintenance)
 
 	b.Handle("/distort", d.ApplyShutdownMiddleware(d.handleReplyDistortion))
 	b.Handle(tb.OnAnimation, d.ApplyShutdownMiddleware(d.handleAnimationDistortion))
