@@ -74,6 +74,9 @@ func (hjq *HonestJobQueue) Pop() *Job {
 	hjq.mu.Lock()
 	defer hjq.mu.Unlock()
 
+	if hjq.queue.Len() == 0 {
+		return nil
+	}
 	job := heap.Pop(&hjq.queue).(*Job)
 
 	for _, ok := hjq.banned[job.userID]; ok; {
