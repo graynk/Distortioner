@@ -2,7 +2,8 @@
 ![Distorted cat](avatar.jpg)
 
 Telegram bot for distorting pictures, stickers, voice messages and GIFs using Content Aware Scale.
-Currently resides here: [@distortionerbot](https://t.me/distortionerbot)
+
+# I no longer plan to develop or host this bot. I have no plans to monetize it, but it got too popular for me to host, so I decided to take it down.
 
 ## Usage
 1. You'll need to install [ffmpeg](http://ffmpeg.org) and [ImageMagick](http://www.imagemagick.org/) with liquid-rescale enabled. For that you'll need to install [liblqr](https://github.com/carlobaldassi/liblqr) and glib-2.0, then [compile from source](https://imagemagick.org/script/install-source.php) (using AppImage might work too)
